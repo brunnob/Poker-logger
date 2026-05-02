@@ -295,12 +295,12 @@ function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { error: stri
   if (!position) return { error: 'posição não reconhecida' };
   if (!preFlopAction) return { error: 'ação pré-flop não reconhecida' };
 
-  const isFold = ['fold', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(preFlopAction);
+  const isFold = ['fold', 'fold_to_3bet', 'fold_to_4bet_plus', 'fold_to_raise'].includes(preFlopAction);
   if (isFold) {
     return {
       position, card1: hand.card1, card2: hand.card2, handType: hand.handType,
       preFlopAction, flopAction: 'none', result: 'ns_loss',
-      range: getHandRange(hand.card1, hand.card2, hand.handType), playerCount: 6,
+      range: getHandRange(hand.card1, hand.card2, hand.handType), playerCount: 6, smallStackMode: false,
     };
   }
   if (!result) return { error: 'resultado faltando (sd_win/sd_loss/ns_win/ns_loss)' };
@@ -308,7 +308,7 @@ function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { error: stri
   return {
     position, card1: hand.card1, card2: hand.card2, handType: hand.handType,
     preFlopAction, flopAction, result,
-    range: getHandRange(hand.card1, hand.card2, hand.handType), playerCount: 6,
+    range: getHandRange(hand.card1, hand.card2, hand.handType), playerCount: 6, smallStackMode: false,
   };
 }
 
@@ -948,25 +948,15 @@ function ResultBars({ results, total }: { results: { sdWin: number; sdLoss: numb
     { label: 'NS Loss', val: results.nsLoss, color: 'bg-rose-200' },
     { label: 'SD Loss', val: results.sdLoss, color: 'bg-rose-500' },
   ];
-  const totalExpected = rangeGroups.slice(0, -1).reduce((sum, g) => sum + g.pct, 0);
-  const acima60Expected = 100 - totalExpected;
-
   return (
-    <div className="space-y-1">
-      {rangeGroups.map((group, idx) => {
-        const count = group.ranges.reduce((sum, r) => sum + (byRange[r] || 0), 0);
-        const pct = ((count / total) * 100).toFixed(0);
-        const expected = idx === rangeGroups.length - 1 ? acima60Expected.toFixed(1) : ((total * group.pct) / 100).toFixed(1);
-        return (
-          <div key={group.label} className="flex items-center border border-stone-300 px-2 py-1">
-            <span className="mono text-[11px] font-bold w-20">{group.label}</span>
-            <span className="num text-[11px] text-stone-500 w-10">{count}</span>
-            <span className="num text-[11px] text-stone-400 w-14">exp: {expected}</span>
-            <div className="flex-1 h-1 bg-stone-100 mx-2"><div className="h-full bg-stone-900" style={{ width: `${(count / total) * 100}%` }} /></div>
-            <span className="num text-[11px] font-bold w-10 text-right">{pct}%</span>
-          </div>
-        );
-      })}
+    <div className="flex gap-1">
+      {items.map(item => (
+        <div key={item.label} className="flex-1">
+          <div className={`h-6 ${item.color}`} style={{ width: '100%' }} />
+          <div className="mono text-[9px] font-bold text-center mt-1">{item.label}</div>
+          <div className="num text-[10px] font-bold text-center">{item.val}</div>
+        </div>
+      ))}
     </div>
   );
 }
