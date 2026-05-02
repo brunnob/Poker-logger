@@ -823,10 +823,9 @@ function RangeDistribution({ byRange, total }: { byRange: Record<string, number>
     { label: 'Top 12-15%', ranges: ['12-15%'], pct: 4.5 },
     { label: 'Top 18-20%', ranges: ['18-20%'], pct: 5.5 },
     { label: 'Top 25%', ranges: ['25%'], pct: 6 },
-    { label: 'Top 30-35%', ranges: ['30-35%'], pct: 7.5 },
-    { label: 'Top 40-45%', ranges: ['40-45%'], pct: 10 },
-    { label: 'Top 50%', ranges: ['50%'], pct: 7.5 },
-    { label: 'Over 50%', ranges: ['60-70%'], pct: 15 },
+    { label: 'Top 40%', ranges: ['30-35%', '40-45%'], pct: 17.5 },
+    { label: 'Top 60%', ranges: ['50%'], pct: 10 },
+    { label: 'Acima 60%', ranges: ['60-70%'], pct: 10 },
   ];
 
   return (
