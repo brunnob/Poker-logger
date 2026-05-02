@@ -782,6 +782,9 @@ function PositionWinRate({ byPos }: { byPos: Record<string, { hands: number; win
             <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${d.hands > 0 ? (d.wins / d.hands) * 100 : 0}%` }} /></div>
             <span className="num text-xs font-bold w-12 text-right">{winRate}%</span>
           </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -803,6 +806,9 @@ function VpipByPosition({ byPosVpip }: { byPosVpip: Record<string, { total: numb
             <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${d.total > 0 ? (d.voluntary / d.total) * 100 : 0}%` }} /></div>
             <span className="num text-xs font-bold w-12 text-right">{vpip}%</span>
           </div>
+        );
+      })}
+    </div>
   );
 }
 
