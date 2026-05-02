@@ -804,15 +804,15 @@ function VpipByPosition({ byPosVpip }: { byPosVpip: Record<string, { total: numb
 function RangeDistribution({ byRange, total }: { byRange: Record<string, number>; total: number }) {
   const rangeGroups = [
     { label: 'Top 3%', ranges: ['3%'], pct: 3 },
-    { label: 'Top 5%', ranges: ['5%'], pct: 5 },
-    { label: 'Top 8%', ranges: ['8%'], pct: 8 },
-    { label: 'Top 12-15%', ranges: ['12-15%'], pct: 13.5 },
-    { label: 'Top 18-20%', ranges: ['18-20%'], pct: 19 },
-    { label: 'Top 25%', ranges: ['25%'], pct: 25 },
-    { label: 'Top 30-35%', ranges: ['30-35%'], pct: 32.5 },
-    { label: 'Top 40-45%', ranges: ['40-45%'], pct: 42.5 },
-    { label: 'Top 50%', ranges: ['50%'], pct: 50 },
-    { label: 'Over 50%', ranges: ['60-70%'], pct: 65 },
+    { label: 'Top 5%', ranges: ['5%'], pct: 2 },
+    { label: 'Top 8%', ranges: ['8%'], pct: 3 },
+    { label: 'Top 12-15%', ranges: ['12-15%'], pct: 4.5 },
+    { label: 'Top 18-20%', ranges: ['18-20%'], pct: 5.5 },
+    { label: 'Top 25%', ranges: ['25%'], pct: 6 },
+    { label: 'Top 30-35%', ranges: ['30-35%'], pct: 7.5 },
+    { label: 'Top 40-45%', ranges: ['40-45%'], pct: 10 },
+    { label: 'Top 50%', ranges: ['50%'], pct: 7.5 },
+    { label: 'Over 50%', ranges: ['60-70%'], pct: 15 },
   ];
 
   return (
