@@ -782,9 +782,6 @@ function PositionWinRate({ byPos }: { byPos: Record<string, { hands: number; win
             <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${d.hands > 0 ? (d.wins / d.hands) * 100 : 0}%` }} /></div>
             <span className="num text-xs font-bold w-12 text-right">{winRate}%</span>
           </div>
-        );
-      })}
-    </div>
   );
 }
 
@@ -806,9 +803,6 @@ function VpipByPosition({ byPosVpip }: { byPosVpip: Record<string, { total: numb
             <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${d.total > 0 ? (d.voluntary / d.total) * 100 : 0}%` }} /></div>
             <span className="num text-xs font-bold w-12 text-right">{vpip}%</span>
           </div>
-        );
-      })}
-    </div>
   );
 }
 
@@ -828,19 +822,22 @@ function RangeDistribution({ byRange, total }: { byRange: Record<string, number>
     { label: 'Acima 60%', ranges: ['60-70%'], pct: 10 },
   ];
 
+  const totalExpected = rangeGroups.slice(0, -1).reduce((sum, g) => sum + g.pct, 0);
+  const acima60Expected = 100 - totalExpected;
+
   return (
-    <div className="space-y-2">
-      {rangeGroups.map(group => {
+    <div className="space-y-1">
+      {rangeGroups.map((group, idx) => {
         const count = group.ranges.reduce((sum, r) => sum + (byRange[r] || 0), 0);
         const pct = ((count / total) * 100).toFixed(0);
-        const expected = ((total * group.pct) / 100).toFixed(1);
+        const expected = idx === rangeGroups.length - 1 ? acima60Expected.toFixed(1) : ((total * group.pct) / 100).toFixed(1);
         return (
-          <div key={group.label} className="flex items-center border border-stone-300 px-3 py-2">
-            <span className="mono text-xs font-bold w-24">{group.label}</span>
-            <span className="num text-xs text-stone-500 w-12">{count}</span>
-            <span className="num text-xs text-stone-400 w-16">exp: {expected}</span>
-            <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${(count / total) * 100}%` }} /></div>
-            <span className="num text-xs font-bold w-12 text-right">{pct}%</span>
+          <div key={group.label} className="flex items-center border border-stone-300 px-2 py-1">
+            <span className="mono text-[11px] font-bold w-20">{group.label}</span>
+            <span className="num text-[11px] text-stone-500 w-10">{count}</span>
+            <span className="num text-[11px] text-stone-400 w-14">exp: {expected}</span>
+            <div className="flex-1 h-1 bg-stone-100 mx-2"><div className="h-full bg-stone-900" style={{ width: `${(count / total) * 100}%` }} /></div>
+            <span className="num text-[11px] font-bold w-10 text-right">{pct}%</span>
           </div>
         );
       })}
@@ -945,22 +942,25 @@ function ResultBars({ results, total }: { results: { sdWin: number; sdLoss: numb
     { label: 'NS Loss', val: results.nsLoss, color: 'bg-rose-200' },
     { label: 'SD Loss', val: results.sdLoss, color: 'bg-rose-500' },
   ];
+  const totalExpected = rangeGroups.slice(0, -1).reduce((sum, g) => sum + g.pct, 0);
+  const acima60Expected = 100 - totalExpected;
+
   return (
-    <div className="space-y-2">
-      <div className="flex h-3 border border-stone-300 overflow-hidden">
-        {items.map(i => i.val > 0 && (
-          <div key={i.label} className={i.color} style={{ width: `${(i.val / total) * 100}%` }} title={`${i.label}: ${i.val}`} />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-        {items.map(i => (
-          <div key={i.label} className="flex items-center gap-2 text-xs">
-            <span className={`w-2.5 h-2.5 ${i.color}`} />
-            <span className="mono text-[10px] uppercase tracking-wider text-stone-600 flex-1">{i.label}</span>
-            <span className="num font-bold">{i.val}</span>
+    <div className="space-y-1">
+      {rangeGroups.map((group, idx) => {
+        const count = group.ranges.reduce((sum, r) => sum + (byRange[r] || 0), 0);
+        const pct = ((count / total) * 100).toFixed(0);
+        const expected = idx === rangeGroups.length - 1 ? acima60Expected.toFixed(1) : ((total * group.pct) / 100).toFixed(1);
+        return (
+          <div key={group.label} className="flex items-center border border-stone-300 px-2 py-1">
+            <span className="mono text-[11px] font-bold w-20">{group.label}</span>
+            <span className="num text-[11px] text-stone-500 w-10">{count}</span>
+            <span className="num text-[11px] text-stone-400 w-14">exp: {expected}</span>
+            <div className="flex-1 h-1 bg-stone-100 mx-2"><div className="h-full bg-stone-900" style={{ width: `${(count / total) * 100}%` }} /></div>
+            <span className="num text-[11px] font-bold w-10 text-right">{pct}%</span>
           </div>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
