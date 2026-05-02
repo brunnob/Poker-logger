@@ -747,6 +747,42 @@ function ResultBtn({ label, variant, selected, onClick }: { label: string; varia
 }
 
 // ============================================================
+// RANGE DISTRIBUTION HELPER
+// ============================================================
+function RangeDistribution({ byRange, total }: { byRange: Record<string, number>; total: number }) {
+  const rangeGroups = [
+    { label: 'Top 3%', ranges: ['3%'] },
+    { label: 'Top 5%', ranges: ['5%'] },
+    { label: 'Top 8%', ranges: ['8%'] },
+    { label: 'Top 12-15%', ranges: ['12-15%'] },
+    { label: 'Top 18-20%', ranges: ['18-20%'] },
+    { label: 'Top 25%', ranges: ['25%'] },
+    { label: 'Top 30-35%', ranges: ['30-35%'] },
+    { label: 'Top 40-45%', ranges: ['40-45%'] },
+    { label: 'Top 50%', ranges: ['50%'] },
+    { label: 'Over 50%', ranges: ['60-70%'] },
+  ];
+
+  return (
+    <div className="space-y-2">
+      {rangeGroups.map(group => {
+        const count = group.ranges.reduce((sum, r) => sum + (byRange[r] || 0), 0);
+        if (count === 0) return null;
+        const pct = ((count / total) * 100).toFixed(0);
+        return (
+          <div key={group.label} className="flex items-center border border-stone-300 px-3 py-2">
+            <span className="mono text-xs font-bold w-24">{group.label}</span>
+            <span className="num text-xs text-stone-500 w-12">{count}</span>
+            <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${(count / total) * 100}%` }} /></div>
+            <span className="num text-xs font-bold w-12 text-right">{pct}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
 // STATS VIEW
 // ============================================================
 function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>; hands: Hand[] }) {
@@ -818,16 +854,7 @@ function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>;
       {Object.keys(scoped.byRange).length > 0 && (
         <div>
           <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Distribuição de Ranges</h3>
-          <div className="border border-stone-300">
-            {Object.entries(scoped.byRange).sort(([, a], [, b]) => (b as number) - (a as number)).map(([range, count]) => (
-              <div key={range} className="flex items-center border-b border-stone-200 last:border-b-0 px-3 py-2">
-                <span className="mono text-xs font-bold w-16">{range}</span>
-                <span className="num text-xs text-stone-500 w-12">{count as number}</span>
-                <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${((count as number) / scoped.total) * 100}%` }} /></div>
-                <span className="num text-xs font-bold w-12 text-right">{(((count as number) / scoped.total) * 100).toFixed(0)}%</span>
-              </div>
-            ))}
-          </div>
+          <RangeDistribution byRange={scoped.byRange} total={scoped.total} />
         </div>
       )}
     </div>
