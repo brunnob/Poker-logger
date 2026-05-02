@@ -95,12 +95,13 @@ function getHandRange(card1: CardRank, card2: CardRank, handType: HandType): Han
 }
 
 function calculateStats(hands: Hand[]) {
-  const ac = { fold: 0, limp: 0, open: 0, callOpen: 0, threeBet: 0, callThreeBet: 0, fourBetPlus: 0, foldTo3Bet: 0, foldTo4BetPlus: 0 };
+  const ac = { fold: 0, limp: 0, open: 0, callOpen: 0, threeBet: 0, callThreeBet: 0, fourBetPlus: 0, foldTo3Bet: 0, foldTo4BetPlus: 0, foldToRaise: 0 };
   const rc = { sdWin: 0, sdLoss: 0, nsWin: 0, nsLoss: 0 };
   let cBetMade = 0, cBetMissed = 0, sawFlop = 0;
   const byPos: Record<string, { hands: number; wins: number }> = {};
   const byPosVpip: Record<string, { total: number; voluntary: number }> = {};
   const byRange: Record<string, number> = {};
+  let stealOpps = 0, steals = 0;
 
   for (const h of hands) {
     switch (h.preFlopAction) {
@@ -113,6 +114,13 @@ function calculateStats(hands: Hand[]) {
       case '4bet_plus': ac.fourBetPlus++; break;
       case 'fold_to_3bet': ac.foldTo3Bet++; break;
       case 'fold_to_4bet_plus': ac.foldTo4BetPlus++; break;
+      case 'fold_to_raise': ac.foldToRaise++; break;
+    }
+    if (['BTN', 'CO'].includes(h.position)) {
+      if (h.preFlopAction !== 'fold_to_raise') {
+        stealOpps++;
+        if (h.preFlopAction === 'open') steals++;
+      }
     }
     const wasAggressor = ['open', '3bet', '4bet_plus'].includes(h.preFlopAction);
     if (wasAggressor) {
@@ -159,6 +167,7 @@ function calculateStats(hands: Hand[]) {
     winRate: pct(wins, voluntary),
     wtsd: pct(sdTotal, sawFlop),
     wsd: pct(rc.sdWin, sdTotal),
+    ats: pct(steals, stealOpps),
     actions: ac, results: rc, byPos, byPosVpip, byRange, sawFlop,
   };
 }
@@ -886,6 +895,16 @@ function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>;
           <Metric label="PFR" value={scoped.pfr} />
           <Metric label="3-Bet" value={scoped.threeBet} />
           <Metric label="Fold 3B" value={scoped.foldTo3Bet} />
+        </div>
+      </div>
+
+      <div>
+        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Pré-Flop</h3>
+        <div className="grid grid-cols-2 gap-px bg-stone-300 border border-stone-300">
+          <Metric label="VPIP" value={scoped.vpip} />
+          <Metric label="PFR" value={scoped.pfr} />
+          <Metric label="3-Bet" value={scoped.threeBet} />
+          <Metric label="ATS" value={scoped.ats} accent />
         </div>
       </div>
 
