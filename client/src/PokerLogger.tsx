@@ -803,16 +803,16 @@ function VpipByPosition({ byPosVpip }: { byPosVpip: Record<string, { total: numb
 // ============================================================
 function RangeDistribution({ byRange, total }: { byRange: Record<string, number>; total: number }) {
   const rangeGroups = [
-    { label: 'Top 3%', ranges: ['3%'] },
-    { label: 'Top 5%', ranges: ['5%'] },
-    { label: 'Top 8%', ranges: ['8%'] },
-    { label: 'Top 12-15%', ranges: ['12-15%'] },
-    { label: 'Top 18-20%', ranges: ['18-20%'] },
-    { label: 'Top 25%', ranges: ['25%'] },
-    { label: 'Top 30-35%', ranges: ['30-35%'] },
-    { label: 'Top 40-45%', ranges: ['40-45%'] },
-    { label: 'Top 50%', ranges: ['50%'] },
-    { label: 'Over 50%', ranges: ['60-70%'] },
+    { label: 'Top 3%', ranges: ['3%'], pct: 3 },
+    { label: 'Top 5%', ranges: ['5%'], pct: 5 },
+    { label: 'Top 8%', ranges: ['8%'], pct: 8 },
+    { label: 'Top 12-15%', ranges: ['12-15%'], pct: 13.5 },
+    { label: 'Top 18-20%', ranges: ['18-20%'], pct: 19 },
+    { label: 'Top 25%', ranges: ['25%'], pct: 25 },
+    { label: 'Top 30-35%', ranges: ['30-35%'], pct: 32.5 },
+    { label: 'Top 40-45%', ranges: ['40-45%'], pct: 42.5 },
+    { label: 'Top 50%', ranges: ['50%'], pct: 50 },
+    { label: 'Over 50%', ranges: ['60-70%'], pct: 65 },
   ];
 
   return (
@@ -820,10 +820,12 @@ function RangeDistribution({ byRange, total }: { byRange: Record<string, number>
       {rangeGroups.map(group => {
         const count = group.ranges.reduce((sum, r) => sum + (byRange[r] || 0), 0);
         const pct = ((count / total) * 100).toFixed(0);
+        const expected = ((total * group.pct) / 100).toFixed(1);
         return (
           <div key={group.label} className="flex items-center border border-stone-300 px-3 py-2">
             <span className="mono text-xs font-bold w-24">{group.label}</span>
             <span className="num text-xs text-stone-500 w-12">{count}</span>
+            <span className="num text-xs text-stone-400 w-16">exp: {expected}</span>
             <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${(count / total) * 100}%` }} /></div>
             <span className="num text-xs font-bold w-12 text-right">{pct}%</span>
           </div>
@@ -1024,6 +1026,7 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast }: {
               <div key={h.id} className={`bg-stone-50 border border-stone-200 border-l-4 ${accent} p-3 flex items-center gap-3`}>
                 <span className="num text-[10px] font-bold text-stone-400 w-8">#{num}</span>
                 <span className="num text-base font-bold w-14">{notation}</span>
+                <span className="mono text-[10px] text-stone-400">{h.range}</span>
                 <span className="mono text-[10px] font-bold uppercase tracking-wider text-stone-500 w-10">{h.position}</span>
                 <span className="mono text-[10px] uppercase tracking-wider text-stone-700 flex-1 truncate">
                   {ACTION_LABEL[h.preFlopAction]}
