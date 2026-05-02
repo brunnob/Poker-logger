@@ -747,6 +747,30 @@ function ResultBtn({ label, variant, selected, onClick }: { label: string; varia
 }
 
 // ============================================================
+// POSITION WIN RATE HELPER
+// ============================================================
+function PositionWinRate({ byPos }: { byPos: Record<string, { hands: number; wins: number }> }) {
+  const allPositions: PokerPosition[] = ['BB', 'SB', 'BTN', 'CO', 'HJ', 'LJ', 'UTG+2', 'UTG+1', 'UTG'];
+  
+  return (
+    <div className="border border-stone-300">
+      {allPositions.map((pos, idx) => {
+        const d = byPos[pos] || { hands: 0, wins: 0 };
+        const winRate = d.hands > 0 ? ((d.wins / d.hands) * 100).toFixed(0) : '0';
+        return (
+          <div key={pos} className={`flex items-center ${idx !== allPositions.length - 1 ? 'border-b border-stone-200' : ''} px-3 py-2`}>
+            <span className="mono text-xs font-bold w-12">{pos}</span>
+            <span className="num text-xs text-stone-500 w-12">{d.hands}m</span>
+            <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${d.hands > 0 ? (d.wins / d.hands) * 100 : 0}%` }} /></div>
+            <span className="num text-xs font-bold w-12 text-right">{winRate}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
 // RANGE DISTRIBUTION HELPER
 // ============================================================
 function RangeDistribution({ byRange, total }: { byRange: Record<string, number>; total: number }) {
@@ -767,7 +791,6 @@ function RangeDistribution({ byRange, total }: { byRange: Record<string, number>
     <div className="space-y-2">
       {rangeGroups.map(group => {
         const count = group.ranges.reduce((sum, r) => sum + (byRange[r] || 0), 0);
-        if (count === 0) return null;
         const pct = ((count / total) * 100).toFixed(0);
         return (
           <div key={group.label} className="flex items-center border border-stone-300 px-3 py-2">
@@ -835,28 +858,15 @@ function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>;
         <ResultBars results={scoped.results} total={scoped.total} />
       </div>
 
-      {Object.keys(scoped.byPos).length > 0 && (
-        <div>
-          <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Win Rate por Posição</h3>
-          <div className="border border-stone-300">
-            {Object.entries(scoped.byPos).sort(([, a], [, b]) => (b as any).hands - (a as any).hands).map(([pos, d]: [string, any]) => (
-              <div key={pos} className="flex items-center border-b border-stone-200 last:border-b-0 px-3 py-2">
-                <span className="mono text-xs font-bold w-12">{pos}</span>
-                <span className="num text-xs text-stone-500 w-12">{d.hands}m</span>
-                <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${(d.wins / d.hands) * 100}%` }} /></div>
-                <span className="num text-xs font-bold w-12 text-right">{((d.wins / d.hands) * 100).toFixed(0)}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div>
+        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Win Rate por Posição</h3>
+        <PositionWinRate byPos={scoped.byPos} />
+      </div>
 
-      {Object.keys(scoped.byRange).length > 0 && (
-        <div>
-          <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Distribuição de Ranges</h3>
-          <RangeDistribution byRange={scoped.byRange} total={scoped.total} />
-        </div>
-      )}
+      <div>
+        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Distribuição de Ranges</h3>
+        <RangeDistribution byRange={scoped.byRange} total={scoped.total} />
+      </div>
     </div>
   );
 }
