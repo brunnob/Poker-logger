@@ -637,11 +637,11 @@ export default function PokerLogger() {
                 <Section title="Ação pré-flop" step="04">
                   <div className="grid grid-cols-2 gap-1">
                     {([
-                      ['fold', 'Fold'], ['limp', 'Limp'],
-                      ['open', 'Open'], ['call_open', 'Call Open'],
-                      ['3bet', '3-Bet'], ['call_3bet', 'Call 3-Bet'],
-                      ['4bet_plus', '4-Bet+'], ['fold_to_3bet', 'Fold ao 3-Bet'],
-                      ['fold_to_4bet_plus', 'Fold ao 4-Bet+'], ['fold_to_raise', 'Fold ao Raise'],
+                      ['fold', 'Fold'], ['fold_to_raise', 'Fold ao Raise'],
+                      ['limp', 'Limp'], ['open', 'Open'],
+                      ['call_open', 'Call Open'], ['3bet', '3-Bet'],
+                      ['call_3bet', 'Call 3-Bet'], ['4bet_plus', '4-Bet+'],
+                      ['fold_to_3bet', 'Fold ao 3-Bet'], ['fold_to_4bet_plus', 'Fold ao 4-Bet+'],
                     ] as [PreFlopAction, string][]).map(([action, label]) => (
                       <button key={action} onClick={() => handlePreFlopAction(action)}
                         className={`mono h-11 text-xs font-bold uppercase tracking-wider border transition-colors ${
