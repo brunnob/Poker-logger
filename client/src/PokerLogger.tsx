@@ -27,6 +27,7 @@ interface Hand {
   result: HandResult;
   range: HandRange;
   playerCount: number;
+  smallStackMode: boolean;
 }
 
 interface SessionState {
@@ -347,6 +348,7 @@ export default function PokerLogger() {
   const [result, setResult] = useState<HandResult | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [smallStackMode, setSmallStackMode] = useState(false);
 
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -401,6 +403,7 @@ export default function PokerLogger() {
       result: finalResult,
       range: getHandRange(card1, card2, handType),
       playerCount: session.playerCount,
+      smallStackMode,
     };
 
     setSession(prev => ({
@@ -689,7 +692,19 @@ export default function PokerLogger() {
 
       {tab === 'logger' && canSave && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-stone-50 border-t-2 border-stone-900">
-          <div className="max-w-2xl mx-auto px-4 py-3 flex gap-2">
+          <div className="max-w-2xl mx-auto px-4 py-3 space-y-3">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setSmallStackMode(!smallStackMode)}
+                className={`px-4 py-2 border-2 mono text-xs font-bold uppercase tracking-wider transition-colors ${
+                  smallStackMode
+                    ? "bg-stone-900 text-stone-50 border-stone-900"
+                    : "bg-stone-50 text-stone-900 border-stone-300 hover:border-stone-900"
+                }`}>
+                {smallStackMode ? "✓ Small Stack" : "Small Stack"}
+              </button>
+              <span className="mono text-[10px] text-stone-500">Marca mãos em small stack</span>
+            </div>
+            <div className="flex gap-2">
             <button onClick={resetForm}
               className="px-5 py-3 border border-stone-300 mono text-xs font-bold uppercase tracking-wider hover:bg-stone-100">Limpar</button>
             <button onClick={() => saveHand()}
@@ -1027,6 +1042,7 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast }: {
                 <span className="num text-[10px] font-bold text-stone-400 w-8">#{num}</span>
                 <span className="num text-base font-bold w-14">{notation}</span>
                 <span className="mono text-[10px] text-stone-400">{h.range}</span>
+                {h.smallStackMode && <span className="mono text-[10px] font-bold text-stone-400 bg-stone-200 px-2 py-0.5 rounded">SS</span>}
                 <span className="mono text-[10px] font-bold uppercase tracking-wider text-stone-500 w-10">{h.position}</span>
                 <span className="mono text-[10px] uppercase tracking-wider text-stone-700 flex-1 truncate">
                   {ACTION_LABEL[h.preFlopAction]}
