@@ -549,7 +549,17 @@ export default function PokerLogger() {
                 <span className="mono text-[10px] font-bold tracking-widest uppercase text-stone-500">Pos</span>
                 <span className="num ml-2 text-sm font-bold">{currentPos}</span>
               </div>
-              <span className="num text-xs text-stone-500">{session.hands.length} mãos</span>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setSmallStackMode(!smallStackMode)}
+                  className={`px-2 py-1 border mono text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                    smallStackMode
+                      ? "bg-stone-900 text-stone-50 border-stone-900"
+                      : "bg-stone-50 text-stone-900 border-stone-300 hover:border-stone-900"
+                  }`}>
+                  {smallStackMode ? "✓ SS" : "SS"}
+                </button>
+                <span className="num text-xs text-stone-500">{session.hands.length} mãos</span>
+              </div>
             </div>
 
             <Section title="Jogadores na mesa" step="01">
@@ -692,19 +702,7 @@ export default function PokerLogger() {
 
       {tab === 'logger' && canSave && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-stone-50 border-t-2 border-stone-900">
-          <div className="max-w-2xl mx-auto px-4 py-3 space-y-3">
-            <div className="flex items-center gap-3">
-              <button onClick={() => setSmallStackMode(!smallStackMode)}
-                className={`px-4 py-2 border-2 mono text-xs font-bold uppercase tracking-wider transition-colors ${
-                  smallStackMode
-                    ? "bg-stone-900 text-stone-50 border-stone-900"
-                    : "bg-stone-50 text-stone-900 border-stone-300 hover:border-stone-900"
-                }`}>
-                {smallStackMode ? "✓ Small Stack" : "Small Stack"}
-              </button>
-              <span className="mono text-[10px] text-stone-500">Marca mãos em small stack</span>
-            </div>
-            <div className="flex gap-2">
+          <div className="max-w-2xl mx-auto px-4 py-3 flex gap-2">
             <button onClick={resetForm}
               className="px-5 py-3 border border-stone-300 mono text-xs font-bold uppercase tracking-wider hover:bg-stone-100">Limpar</button>
             <button onClick={() => saveHand()}
