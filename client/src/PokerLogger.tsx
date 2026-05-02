@@ -894,16 +894,6 @@ function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>;
           <Metric label="VPIP" value={scoped.vpip} />
           <Metric label="PFR" value={scoped.pfr} />
           <Metric label="3-Bet" value={scoped.threeBet} />
-          <Metric label="Fold 3B" value={scoped.foldTo3Bet} />
-        </div>
-      </div>
-
-      <div>
-        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Pré-Flop</h3>
-        <div className="grid grid-cols-2 gap-px bg-stone-300 border border-stone-300">
-          <Metric label="VPIP" value={scoped.vpip} />
-          <Metric label="PFR" value={scoped.pfr} />
-          <Metric label="3-Bet" value={scoped.threeBet} />
           <Metric label="ATS" value={scoped.ats} accent />
         </div>
       </div>
