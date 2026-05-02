@@ -992,6 +992,8 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast }: {
       if (h.flopAction !== 'none') txt += ` → ${ACTION_LABEL[h.flopAction]}`;
       txt += ` | ${h.result.toUpperCase().replace('_', ' ')}\n`;
     });
+    const hasSmallStack = hands.some(h => h.smallStackMode);
+    if (hasSmallStack) txt += `\nObs: Small stack`;
     try {
       await navigator.clipboard.writeText(txt);
       setExportState('copied');
