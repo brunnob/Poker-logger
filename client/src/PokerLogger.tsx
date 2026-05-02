@@ -10,7 +10,7 @@ type PokerPosition = 'BB' | 'SB' | 'BTN' | 'CO' | 'HJ' | 'LJ' | 'UTG+2' | 'UTG+1
 type PreFlopAction =
   | 'fold' | 'limp' | 'open' | 'call_open'
   | '3bet' | 'call_3bet' | '4bet_plus'
-  | 'fold_to_3bet' | 'fold_to_4bet_plus';
+  | 'fold_to_3bet' | 'fold_to_4bet_plus' | 'fold_to_raise';
 type FlopAction = 'cbet' | 'fold_to_cbet' | 'no_cbet' | 'none';
 type HandResult = 'sd_win' | 'sd_loss' | 'ns_win' | 'ns_loss';
 type HandRange = '3%' | '5%' | '8%' | '10%' | '12-15%' | '18-20%' | '25%' | '30-35%' | '40-45%' | '50%' | '60-70%';
@@ -183,7 +183,7 @@ function handNotation(card1: CardRank, card2: CardRank, handType: HandType): str
 const ACTION_LABEL: Record<PreFlopAction | FlopAction, string> = {
   fold: 'Fold', limp: 'Limp', open: 'Open', call_open: 'Call Open',
   '3bet': '3-Bet', call_3bet: 'Call 3B', '4bet_plus': '4-Bet+',
-  fold_to_3bet: 'Fold 3B', fold_to_4bet_plus: 'Fold 4B+',
+  fold_to_3bet: 'Fold 3B', fold_to_4bet_plus: 'Fold 4B+', fold_to_raise: 'Fold Raise',
   cbet: 'C-Bet', fold_to_cbet: 'Fold C-Bet', no_cbet: 'Check', none: '—',
 };
 
@@ -209,6 +209,7 @@ const PREFLOP_ALIASES: Record<string, PreFlopAction> = {
   'foldto3bet': 'fold_to_3bet', 'foldto3b': 'fold_to_3bet', 'fold3b': 'fold_to_3bet', 'fold3bet': 'fold_to_3bet',
   'foldto4bet': 'fold_to_4bet_plus', 'foldto4bet+': 'fold_to_4bet_plus', 'foldto4betplus': 'fold_to_4bet_plus',
   'fold4b+': 'fold_to_4bet_plus', 'fold4b': 'fold_to_4bet_plus', 'fold4bet': 'fold_to_4bet_plus',
+  'foldtoraise': 'fold_to_raise', 'foldraise': 'fold_to_raise',
 };
 
 const FLOP_ALIASES: Record<string, FlopAction> = {
@@ -418,7 +419,7 @@ export default function PokerLogger() {
 
   const handlePreFlopAction = (action: PreFlopAction) => {
     setPreFlopAction(action);
-    if (['fold', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(action)) {
+    if (['fold', 'fold_to_3bet', 'fold_to_4bet_plus', 'fold_to_raise'].includes(action)) {
       setTimeout(() => {
         if (card1 && card2 && handType) saveHand('ns_loss', action);
       }, 30);
@@ -640,7 +641,7 @@ export default function PokerLogger() {
                       ['open', 'Open'], ['call_open', 'Call Open'],
                       ['3bet', '3-Bet'], ['call_3bet', 'Call 3-Bet'],
                       ['4bet_plus', '4-Bet+'], ['fold_to_3bet', 'Fold ao 3-Bet'],
-                      ['fold_to_4bet_plus', 'Fold ao 4-Bet+'],
+                      ['fold_to_4bet_plus', 'Fold ao 4-Bet+'], ['fold_to_raise', 'Fold ao Raise'],
                     ] as [PreFlopAction, string][]).map(([action, label]) => (
                       <button key={action} onClick={() => handlePreFlopAction(action)}
                         className={`mono h-11 text-xs font-bold uppercase tracking-wider border transition-colors ${
