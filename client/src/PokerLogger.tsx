@@ -98,6 +98,7 @@ function calculateStats(hands: Hand[]) {
   const rc = { sdWin: 0, sdLoss: 0, nsWin: 0, nsLoss: 0 };
   let cBetMade = 0, cBetMissed = 0, sawFlop = 0;
   const byPos: Record<string, { hands: number; wins: number }> = {};
+  const byPosVpip: Record<string, { total: number; voluntary: number }> = {};
   const byRange: Record<string, number> = {};
 
   for (const h of hands) {
@@ -129,6 +130,9 @@ function calculateStats(hands: Hand[]) {
       byPos[h.position].hands++;
       if (h.result === 'sd_win' || h.result === 'ns_win') byPos[h.position].wins++;
     }
+    if (!byPosVpip[h.position]) byPosVpip[h.position] = { total: 0, voluntary: 0 };
+    byPosVpip[h.position].total++;
+    if (h.preFlopAction !== 'fold') byPosVpip[h.position].voluntary++;
     byRange[h.range] = (byRange[h.range] || 0) + 1;
   }
 
@@ -154,7 +158,7 @@ function calculateStats(hands: Hand[]) {
     winRate: pct(wins, voluntary),
     wtsd: pct(sdTotal, sawFlop),
     wsd: pct(rc.sdWin, sdTotal),
-    actions: ac, results: rc, byPos, byRange, sawFlop,
+    actions: ac, results: rc, byPos, byPosVpip, byRange, sawFlop,
   };
 }
 
@@ -771,6 +775,30 @@ function PositionWinRate({ byPos }: { byPos: Record<string, { hands: number; win
 }
 
 // ============================================================
+// VPIP BY POSITION HELPER
+// ============================================================
+function VpipByPosition({ byPosVpip }: { byPosVpip: Record<string, { total: number; voluntary: number }> }) {
+  const allPositions: PokerPosition[] = ['BB', 'SB', 'BTN', 'CO', 'HJ', 'LJ', 'UTG+2', 'UTG+1', 'UTG'];
+  
+  return (
+    <div className="border border-stone-300">
+      {allPositions.map((pos, idx) => {
+        const d = byPosVpip[pos] || { total: 0, voluntary: 0 };
+        const vpip = d.total > 0 ? ((d.voluntary / d.total) * 100).toFixed(1) : '0.0';
+        return (
+          <div key={pos} className={`flex items-center ${idx !== allPositions.length - 1 ? 'border-b border-stone-200' : ''} px-3 py-2`}>
+            <span className="mono text-xs font-bold w-12">{pos}</span>
+            <span className="num text-xs text-stone-500 w-12">{d.total}m</span>
+            <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${d.total > 0 ? (d.voluntary / d.total) * 100 : 0}%` }} /></div>
+            <span className="num text-xs font-bold w-12 text-right">{vpip}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
 // RANGE DISTRIBUTION HELPER
 // ============================================================
 function RangeDistribution({ byRange, total }: { byRange: Record<string, number>; total: number }) {
@@ -854,18 +882,23 @@ function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>;
       </div>
 
       <div>
+        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Distribuição de Ranges</h3>
+        <RangeDistribution byRange={scoped.byRange} total={scoped.total} />
+      </div>
+
+      <div>
         <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Resultados</h3>
         <ResultBars results={scoped.results} total={scoped.total} />
       </div>
 
       <div>
-        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Win Rate por Posição</h3>
-        <PositionWinRate byPos={scoped.byPos} />
+        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">VPIP por Posição</h3>
+        <VpipByPosition byPosVpip={scoped.byPosVpip} />
       </div>
 
       <div>
-        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Distribuição de Ranges</h3>
-        <RangeDistribution byRange={scoped.byRange} total={scoped.total} />
+        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Win Rate por Posição</h3>
+        <PositionWinRate byPos={scoped.byPos} />
       </div>
     </div>
   );
