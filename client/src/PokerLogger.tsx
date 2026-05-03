@@ -990,7 +990,7 @@ function Metric({ label, value, accent }: { label: string; value: number; accent
 }
 
 function ResultBars({ results, total, foldPf }: { results: { sdWin: number; sdLoss: number; nsWin: number; nsLoss: number }; total: number; foldPf?: number }) {
-  const foldPfCount = results.foldPf ? Math.round((results.foldPf / 100) * total) : 0;
+  const foldPfCount = foldPf ? Math.round((foldPf / 100) * total) : 0;
   const nsLossAdjusted = results.nsLoss - foldPfCount;
   const items = [
     { label: 'SD Win', val: results.sdWin, color: 'bg-emerald-500' },
