@@ -954,12 +954,7 @@ function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>;
 
       <div>
         <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Resultados</h3>
-        <ResultBars results={scoped.results} total={scoped.total} />
-      </div>
-
-      <div>
-        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Fold PF</h3>
-        <Metric label="Fold Pré-Flop" value={scoped.foldPf} accent />
+        <ResultBars results={scoped.results} total={scoped.total} foldPf={scoped.foldPf} />
       </div>
 
       <div>
@@ -994,7 +989,7 @@ function Metric({ label, value, accent }: { label: string; value: number; accent
   );
 }
 
-function ResultBars({ results, total }: { results: { sdWin: number; sdLoss: number; nsWin: number; nsLoss: number }; total: number }) {
+function ResultBars({ results, total, foldPf }: { results: { sdWin: number; sdLoss: number; nsWin: number; nsLoss: number }; total: number; foldPf?: number }) {
   const items = [
     { label: 'SD Win', val: results.sdWin, color: 'bg-emerald-500' },
     { label: 'NS Win', val: results.nsWin, color: 'bg-emerald-200' },
@@ -1002,14 +997,21 @@ function ResultBars({ results, total }: { results: { sdWin: number; sdLoss: numb
     { label: 'SD Loss', val: results.sdLoss, color: 'bg-rose-500' },
   ];
   return (
-    <div className="flex gap-1">
-      {items.map(item => (
-        <div key={item.label} className="flex-1">
-          <div className={`h-6 ${item.color}`} style={{ width: '100%' }} />
-          <div className="mono text-[9px] font-bold text-center mt-1">{item.label}</div>
-          <div className="num text-[10px] font-bold text-center">{item.val}</div>
+    <div>
+      <div className="flex gap-1 mb-3">
+        {items.map(item => (
+          <div key={item.label} className="flex-1">
+            <div className={`h-6 ${item.color}`} style={{ width: '100%' }} />
+            <div className="mono text-[9px] font-bold text-center mt-1">{item.label}</div>
+            <div className="num text-[10px] font-bold text-center">{item.val}</div>
+          </div>
+        ))}
+      </div>
+      {foldPf !== undefined && (
+        <div className="text-[10px] text-stone-500 text-center">
+          <span className="mono font-bold">Decote Fold PF:</span> -{foldPf.toFixed(1)}%
         </div>
-      ))}
+      )}
     </div>
   );
 }
