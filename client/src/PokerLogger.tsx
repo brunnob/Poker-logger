@@ -1095,7 +1095,7 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast }: {
                 </span>
                 <span className={`mono text-[10px] font-bold uppercase tracking-wider ${
                   isFold ? 'text-stone-400' : isWin ? 'text-emerald-700' : 'text-rose-700'
-                }`}>{h.result.replace('_', ' ').toUpperCase()}</span>
+                }`}>{isFold ? 'FOLD' : h.result.replace('_', ' ').toUpperCase()}</span>
                 <button onClick={() => onDelete(h.id)} className="text-stone-400 hover:text-rose-600 transition-colors" title="Apagar">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -1179,7 +1179,7 @@ AA HJ open cbet sd_win`;
                       </span>
                       <span className={`mono text-[10px] font-bold uppercase tracking-wider ${
                         isFold ? 'text-stone-400' : isWin ? 'text-emerald-700' : 'text-rose-700'
-                      }`}>{h.result.replace('_', ' ').toUpperCase()}</span>
+                      }`}>{isFold ? 'FOLD' : h.result.replace('_', ' ').toUpperCase()}</span>
                     </div>
                   );
                 })}
