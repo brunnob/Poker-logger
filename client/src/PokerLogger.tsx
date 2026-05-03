@@ -94,6 +94,29 @@ function getHandRange(card1: CardRank, card2: CardRank, handType: HandType): Han
   return '60-70%';
 }
 
+const TOTAL_COMBOS = 1326;
+const BUCKET_WEIGHTS: Record<HandRange, number> = (() => {
+  const w = {} as Record<HandRange, number>;
+  for (const r of CARD_RANKS) {
+    const b = getHandRange(r, r, 'pair');
+    w[b] = (w[b] || 0) + 6;
+  }
+  for (let i = 0; i < CARD_RANKS.length; i++) {
+    for (let j = i + 1; j < CARD_RANKS.length; j++) {
+      const a = CARD_RANKS[i], b = CARD_RANKS[j];
+      const s = getHandRange(a, b, 'suited');
+      w[s] = (w[s] || 0) + 4;
+      const o = getHandRange(a, b, 'offsuit');
+      w[o] = (w[o] || 0) + 12;
+    }
+  }
+  return w;
+})();
+
+function formatExpected(n: number): string {
+  return n >= 10 ? Math.round(n).toString() : n.toFixed(1);
+}
+
 function calculateStats(hands: Hand[]) {
   const ac = { fold: 0, limp: 0, open: 0, callOpen: 0, threeBet: 0, callThreeBet: 0, fourBetPlus: 0, foldTo3Bet: 0, foldTo4BetPlus: 0, foldToRaise: 0 };
   const rc = { sdWin: 0, sdLoss: 0, nsWin: 0, nsLoss: 0 };
@@ -399,9 +422,10 @@ export default function PokerLogger() {
     setPreFlopAction(null); setFlopAction('none'); setResult(null);
   };
 
-  const saveHand = (overrideResult?: HandResult, overrideAction?: PreFlopAction) => {
+  const saveHand = (overrideResult?: HandResult, overrideAction?: PreFlopAction, overrideFlopAction?: FlopAction) => {
     const finalAction = overrideAction || preFlopAction;
     const finalResult = overrideResult || result;
+    const finalFlopAction = overrideFlopAction || flopAction;
     if (!card1 || !card2 || !handType || !finalAction || !finalResult) return;
 
     const newHand: Hand = {
@@ -409,7 +433,7 @@ export default function PokerLogger() {
       timestamp: Date.now(),
       position: currentPos, card1, card2, handType,
       preFlopAction: finalAction,
-      flopAction: ['fold', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(finalAction) ? 'none' : flopAction,
+      flopAction: ['fold', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(finalAction) ? 'none' : finalFlopAction,
       result: finalResult,
       range: getHandRange(card1, card2, handType),
       playerCount: session.playerCount,
@@ -434,6 +458,17 @@ export default function PokerLogger() {
       }, 30);
     } else {
       scrollTo('flop');
+    }
+  };
+
+  const handleFlopAction = (action: FlopAction) => {
+    setFlopAction(action);
+    if (action === 'fold_to_cbet') {
+      setTimeout(() => {
+        if (card1 && card2 && handType && preFlopAction) saveHand('ns_loss', undefined, action);
+      }, 30);
+    } else {
+      scrollTo('result');
     }
   };
 
@@ -675,7 +710,7 @@ export default function PokerLogger() {
                       ['no_cbet', 'Check (sem C-Bet)'],
                       ['fold_to_cbet', 'Fold ao C-Bet'],
                     ] as [FlopAction, string][]).map(([action, label]) => (
-                      <button key={action} onClick={() => { setFlopAction(action); scrollTo('result'); }}
+                      <button key={action} onClick={() => handleFlopAction(action)}
                         className={`mono h-11 text-xs font-bold uppercase tracking-wider border transition-colors ${
                           flopAction === action
                             ? 'bg-stone-900 text-stone-50 border-stone-900'
@@ -683,6 +718,7 @@ export default function PokerLogger() {
                         }`}>{label}</button>
                     ))}
                   </div>
+                  <p className="mono text-[10px] text-stone-500 mt-3 tracking-wider uppercase">Fold ao C-Bet salva automaticamente</p>
                 </Section>
               </div>
             )}
@@ -825,32 +861,31 @@ function VpipByPosition({ byPosVpip }: { byPosVpip: Record<string, { total: numb
 // RANGE DISTRIBUTION HELPER
 // ============================================================
 function RangeDistribution({ byRange, total }: { byRange: Record<string, number>; total: number }) {
-  const rangeGroups = [
-    { label: 'Top 3%', ranges: ['3%'], pct: 3 },
-    { label: 'Top 5%', ranges: ['5%'], pct: 2 },
-    { label: 'Top 8%', ranges: ['8%'], pct: 3 },
-    { label: 'Top 12-15%', ranges: ['12-15%'], pct: 4.5 },
-    { label: 'Top 18-20%', ranges: ['18-20%'], pct: 5.5 },
-    { label: 'Top 25%', ranges: ['25%'], pct: 6 },
-    { label: 'Top 40%', ranges: ['30-35%', '40-45%'], pct: 17.5 },
-    { label: 'Top 60%', ranges: ['50%'], pct: 10 },
-    { label: 'Acima 60%', ranges: ['60-70%'], pct: 10 },
+  const rangeGroups: { label: string; ranges: HandRange[] }[] = [
+    { label: 'Top 3%', ranges: ['3%'] },
+    { label: 'Top 5%', ranges: ['5%'] },
+    { label: 'Top 8%', ranges: ['8%'] },
+    { label: 'Top 10%', ranges: ['10%'] },
+    { label: 'Top 12-15%', ranges: ['12-15%'] },
+    { label: 'Top 18-20%', ranges: ['18-20%'] },
+    { label: 'Top 25%', ranges: ['25%'] },
+    { label: 'Top 40%', ranges: ['30-35%', '40-45%'] },
+    { label: 'Top 60%', ranges: ['50%'] },
+    { label: 'Acima 60%', ranges: ['60-70%'] },
   ];
-
-  const totalExpected = rangeGroups.slice(0, -1).reduce((sum, g) => sum + g.pct, 0);
-  const acima60Expected = 100 - totalExpected;
 
   return (
     <div className="space-y-1">
-      {rangeGroups.map((group, idx) => {
+      {rangeGroups.map(group => {
         const count = group.ranges.reduce((sum, r) => sum + (byRange[r] || 0), 0);
+        const combos = group.ranges.reduce((sum, r) => sum + (BUCKET_WEIGHTS[r] || 0), 0);
+        const expected = total * combos / TOTAL_COMBOS;
         const pct = ((count / total) * 100).toFixed(0);
-        const expected = idx === rangeGroups.length - 1 ? acima60Expected.toFixed(1) : ((total * group.pct) / 100).toFixed(1);
         return (
           <div key={group.label} className="flex items-center border border-stone-300 px-2 py-1">
             <span className="mono text-[11px] font-bold w-20">{group.label}</span>
-            <span className="num text-[11px] text-stone-500 w-10">{count}</span>
-            <span className="num text-[11px] text-stone-400 w-14">exp: {expected}</span>
+            <span className="num text-[11px] text-stone-500 w-8">{count}</span>
+            <span className="num text-[11px] text-stone-400 w-12">exp: {formatExpected(expected)}</span>
             <div className="flex-1 h-1 bg-stone-100 mx-2"><div className="h-full bg-stone-900" style={{ width: `${(count / total) * 100}%` }} /></div>
             <span className="num text-[11px] font-bold w-10 text-right">{pct}%</span>
           </div>
