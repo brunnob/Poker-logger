@@ -1080,7 +1080,7 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast }: {
             const num = hands.length - i;
             const notation = handNotation(h.card1, h.card2, h.handType);
             const isWin = h.result === 'sd_win' || h.result === 'ns_win';
-            const isFold = ['fold', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(h.preFlopAction);
+            const isFold = ['fold', 'fold_to_raise', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(h.preFlopAction);
             const accent = isFold ? 'border-l-stone-300' : isWin ? 'border-l-emerald-500' : 'border-l-rose-500';
             return (
               <div key={h.id} className={`bg-stone-50 border border-stone-200 border-l-4 ${accent} p-3 flex items-center gap-3`}>
@@ -1167,7 +1167,7 @@ AA HJ open cbet sd_win`;
                 {preview.hands.slice(0, 5).map((h, i) => {
                   const notation = handNotation(h.card1, h.card2, h.handType);
                   const isWin = h.result === 'sd_win' || h.result === 'ns_win';
-                  const isFold = ['fold', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(h.preFlopAction);
+                  const isFold = ['fold', 'fold_to_raise', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(h.preFlopAction);
                   const accent = isFold ? 'border-l-stone-300' : isWin ? 'border-l-emerald-500' : 'border-l-rose-500';
                   return (
                     <div key={i} className={`bg-stone-50 border border-stone-200 border-l-4 ${accent} p-2 flex items-center gap-3`}>
