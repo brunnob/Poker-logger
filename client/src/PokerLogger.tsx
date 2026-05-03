@@ -1028,7 +1028,11 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast }: {
       txt += ` | ${h.result.toUpperCase().replace('_', ' ')}\n`;
     });
     const hasSmallStack = hands.some(h => h.smallStackMode);
-    if (hasSmallStack) txt += `\nObs: Small stack`;
+    if (hasSmallStack) {
+      const playerCounts = hands.filter(h => h.smallStackMode).map(h => h.playerCount);
+      const avgPlayers = Math.round(playerCounts.reduce((a, b) => a + b, 0) / playerCounts.length);
+      txt += `\nObs: Small stack | ${avgPlayers} jogadores`;
+    }
     try {
       await navigator.clipboard.writeText(txt);
       setExportState('copied');
