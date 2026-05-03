@@ -996,22 +996,18 @@ function ResultBars({ results, total, foldPf }: { results: { sdWin: number; sdLo
     { label: 'NS Loss', val: results.nsLoss, color: 'bg-rose-200' },
     { label: 'SD Loss', val: results.sdLoss, color: 'bg-rose-500' },
   ];
+  const totalVpip = results.sdWin + results.nsWin + results.nsLoss + results.sdLoss;
+  const foldPfCount = total - totalVpip;
+  const allItems = [...items, { label: 'Fold PF', val: foldPfCount, color: 'bg-stone-400' }];
   return (
-    <div>
-      <div className="flex gap-1 mb-3">
-        {items.map(item => (
+    <div className="flex gap-1">
+      {allItems.map(item => (
           <div key={item.label} className="flex-1">
             <div className={`h-6 ${item.color}`} style={{ width: '100%' }} />
             <div className="mono text-[9px] font-bold text-center mt-1">{item.label}</div>
             <div className="num text-[10px] font-bold text-center">{item.val}</div>
           </div>
         ))}
-      </div>
-      {foldPf !== undefined && (
-        <div className="text-[10px] text-stone-500 text-center">
-          <span className="mono font-bold">Decote Fold PF:</span> -{foldPf.toFixed(1)}%
-        </div>
-      )}
     </div>
   );
 }
