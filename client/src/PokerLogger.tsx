@@ -39,14 +39,14 @@ interface SessionState {
 const CARD_RANKS: CardRank[] = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
 
 const POSITIONS_BY_COUNT: Record<number, PokerPosition[]> = {
-  2: ['BB', 'SB'],
-  3: ['BB', 'SB', 'BTN'],
-  4: ['BB', 'SB', 'BTN', 'CO'],
-  5: ['BB', 'SB', 'BTN', 'CO', 'HJ'],
-  6: ['BB', 'SB', 'BTN', 'CO', 'HJ', 'LJ'],
-  7: ['BB', 'SB', 'BTN', 'CO', 'HJ', 'LJ', 'UTG+2'],
-  8: ['BB', 'SB', 'BTN', 'CO', 'HJ', 'LJ', 'UTG+2', 'UTG+1'],
-  9: ['BB', 'SB', 'BTN', 'CO', 'HJ', 'LJ', 'UTG+2', 'UTG+1', 'UTG'],
+  2: ['SB', 'BB'],
+  3: ['BTN', 'SB', 'BB'],
+  4: ['UTG', 'BTN', 'SB', 'BB'],
+  5: ['UTG', 'CO', 'BTN', 'SB', 'BB'],
+  6: ['UTG', 'MP', 'CO', 'BTN', 'SB', 'BB'],
+  7: ['UTG', 'UTG+1', 'MP', 'CO', 'BTN', 'SB', 'BB'],
+  8: ['UTG', 'UTG+1', 'UTG+2', 'MP', 'CO', 'BTN', 'SB', 'BB'],
+  9: ['UTG', 'UTG+1', 'UTG+2', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
 };
 
 const STORAGE_KEY = 'poker_session_v1';
@@ -139,7 +139,8 @@ function calculateStats(hands: Hand[]) {
       case 'fold_to_4bet_plus': ac.foldTo4BetPlus++; break;
       case 'fold_to_raise': ac.foldToRaise++; break;
     }
-    if (['BTN', 'CO'].includes(h.position)) {
+    const stealPositions = h.playerCount === 2 ? [] : h.playerCount === 3 ? ['BTN'] : ['BTN', 'CO'];
+    if (stealPositions.includes(h.position)) {
       if (h.preFlopAction !== 'fold_to_raise') {
         stealOpps++;
         if (h.preFlopAction === 'open') steals++;
