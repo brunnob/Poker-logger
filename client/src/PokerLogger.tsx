@@ -207,7 +207,7 @@ function advancePosition(currentIndex: number, playerCount: number): number {
   const positions = getPositions(playerCount);
   const bbIndex = positions.length - 1;
   const sbIndex = positions.length - 2;
-  if (currentIndex === bbIndex) return sbIndex;
+  if (currentIndex === sbIndex) return bbIndex;
   return (currentIndex + 1) % positions.length;
 }
 
