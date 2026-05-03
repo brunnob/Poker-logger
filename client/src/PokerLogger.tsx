@@ -990,14 +990,14 @@ function Metric({ label, value, accent }: { label: string; value: number; accent
 }
 
 function ResultBars({ results, total, foldPf }: { results: { sdWin: number; sdLoss: number; nsWin: number; nsLoss: number }; total: number; foldPf?: number }) {
+  const foldPfCount = results.foldPf ? Math.round((results.foldPf / 100) * total) : 0;
+  const nsLossAdjusted = results.nsLoss - foldPfCount;
   const items = [
     { label: 'SD Win', val: results.sdWin, color: 'bg-emerald-500' },
     { label: 'NS Win', val: results.nsWin, color: 'bg-emerald-200' },
-    { label: 'NS Loss', val: results.nsLoss, color: 'bg-rose-200' },
+    { label: 'NS Loss', val: nsLossAdjusted, color: 'bg-rose-200' },
     { label: 'SD Loss', val: results.sdLoss, color: 'bg-rose-500' },
   ];
-  const totalVpip = results.sdWin + results.nsWin + results.nsLoss + results.sdLoss;
-  const foldPfCount = total - totalVpip;
   const allItems = [...items, { label: 'Fold PF', val: foldPfCount, color: 'bg-stone-400' }];
   return (
     <div className="flex gap-1">
