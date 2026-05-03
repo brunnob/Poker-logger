@@ -39,14 +39,14 @@ interface SessionState {
 const CARD_RANKS: CardRank[] = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
 
 const POSITIONS_BY_COUNT: Record<number, PokerPosition[]> = {
-  2: ['SB', 'BB'],
-  3: ['BTN', 'SB', 'BB'],
-  4: ['UTG', 'BTN', 'SB', 'BB'],
-  5: ['UTG', 'CO', 'BTN', 'SB', 'BB'],
-  6: ['UTG', 'MP', 'CO', 'BTN', 'SB', 'BB'],
-  7: ['UTG', 'UTG+1', 'MP', 'CO', 'BTN', 'SB', 'BB'],
-  8: ['UTG', 'UTG+1', 'UTG+2', 'MP', 'CO', 'BTN', 'SB', 'BB'],
-  9: ['UTG', 'UTG+1', 'UTG+2', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
+  2: ['BB', 'SB'],
+  3: ['BB', 'SB', 'BTN'],
+  4: ['BB', 'SB', 'BTN', 'UTG'],
+  5: ['BB', 'SB', 'BTN', 'CO', 'UTG'],
+  6: ['BB', 'SB', 'BTN', 'CO', 'MP', 'UTG'],
+  7: ['BB', 'SB', 'BTN', 'CO', 'MP', 'UTG+1', 'UTG'],
+  8: ['BB', 'SB', 'BTN', 'CO', 'MP', 'UTG+2', 'UTG+1', 'UTG'],
+  9: ['BB', 'SB', 'BTN', 'CO', 'HJ', 'LJ', 'UTG+2', 'UTG+1', 'UTG'],
 };
 
 const STORAGE_KEY = 'poker_session_v1';
