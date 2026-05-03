@@ -180,6 +180,8 @@ function calculateStats(hands: Hand[]) {
   const sdTotal = rc.sdWin + rc.sdLoss;
 
   const pct = (n: number, d: number) => d > 0 ? (n / d) * 100 : 0;
+  const foldPfCount = ac.fold + ac.foldToRaise;
+  const foldPfPct = pct(foldPfCount, total);
 
   return {
     total, voluntary,
@@ -187,6 +189,7 @@ function calculateStats(hands: Hand[]) {
     pfr: pct(pfrHands, total),
     threeBet: pct(threeBetCount, threeBetOpps),
     foldTo3Bet: pct(ac.foldTo3Bet, foldTo3BDenom),
+    foldPf: foldPfPct,
     cBet: pct(cBetMade, cBetOpps),
     winRate: pct(wins, voluntary),
     wtsd: pct(sdTotal, sawFlop),
@@ -952,6 +955,11 @@ function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>;
       <div>
         <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Resultados</h3>
         <ResultBars results={scoped.results} total={scoped.total} />
+      </div>
+
+      <div>
+        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Fold PF</h3>
+        <Metric label="Fold Pré-Flop" value={scoped.foldPf} accent />
       </div>
 
       <div>
