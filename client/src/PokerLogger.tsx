@@ -118,14 +118,23 @@ function formatExpected(n: number): string {
   return n >= 10 ? Math.round(n).toString() : n.toFixed(1);
 }
 
+const VOLUNTARY_ACTIONS: PreFlopAction[] = [
+  'limp', 'open', 'call_open', '3bet', 'call_3bet', '4bet_plus',
+  'fold_to_3bet', 'fold_to_4bet_plus',
+];
+const isVoluntary = (a: PreFlopAction) => VOLUNTARY_ACTIONS.includes(a);
+
 function calculateStats(hands: Hand[]) {
   const ac = { fold: 0, limp: 0, open: 0, callOpen: 0, threeBet: 0, callThreeBet: 0, fourBetPlus: 0, foldTo3Bet: 0, foldTo4BetPlus: 0, foldToRaise: 0 };
   const rc = { sdWin: 0, sdLoss: 0, nsWin: 0, nsLoss: 0 };
-  let cBetMade = 0, cBetMissed = 0, sawFlop = 0;
+  let cBetMade = 0, cBetMissed = 0, sawFlop = 0, wentToShowdown = 0, sdWinReal = 0;
   const byPos: Record<string, { hands: number; wins: number }> = {};
   const byPosVpip: Record<string, { total: number; voluntary: number }> = {};
   const byRange: Record<string, number> = {};
   let stealOpps = 0, steals = 0;
+
+  const STEAL_OPP_ACTIONS: PreFlopAction[] = ['open', 'fold', 'limp', 'fold_to_3bet'];
+  const STEAL_ATTEMPT_ACTIONS: PreFlopAction[] = ['open', 'fold_to_3bet'];
 
   for (const h of hands) {
     switch (h.preFlopAction) {
@@ -142,31 +151,34 @@ function calculateStats(hands: Hand[]) {
     }
     const stealPositions = h.playerCount === 2 ? [] : h.playerCount === 3 ? ['BTN'] : ['BTN', 'CO'];
     if (stealPositions.includes(h.position)) {
-      if (h.preFlopAction !== 'fold_to_raise') {
-        stealOpps++;
-        if (h.preFlopAction === 'open') steals++;
-      }
+      if (STEAL_OPP_ACTIONS.includes(h.preFlopAction)) stealOpps++;
+      if (STEAL_ATTEMPT_ACTIONS.includes(h.preFlopAction)) steals++;
     }
     const wasAggressor = ['open', '3bet', '4bet_plus'].includes(h.preFlopAction);
-    if (wasAggressor) {
+    const sawFlopThisHand = h.flopAction !== 'none';
+    if (wasAggressor && sawFlopThisHand) {
       if (h.flopAction === 'cbet') cBetMade++;
       else if (h.flopAction === 'no_cbet') cBetMissed++;
     }
-    if (h.flopAction !== 'none') sawFlop++;
+    if (sawFlopThisHand) sawFlop++;
     switch (h.result) {
       case 'sd_win': rc.sdWin++; break;
       case 'sd_loss': rc.sdLoss++; break;
       case 'ns_win': rc.nsWin++; break;
       case 'ns_loss': rc.nsLoss++; break;
     }
-    if (h.preFlopAction !== 'fold') {
+    if (sawFlopThisHand && (h.result === 'sd_win' || h.result === 'sd_loss')) {
+      wentToShowdown++;
+      if (h.result === 'sd_win') sdWinReal++;
+    }
+    if (isVoluntary(h.preFlopAction)) {
       if (!byPos[h.position]) byPos[h.position] = { hands: 0, wins: 0 };
       byPos[h.position].hands++;
       if (h.result === 'sd_win' || h.result === 'ns_win') byPos[h.position].wins++;
     }
     if (!byPosVpip[h.position]) byPosVpip[h.position] = { total: 0, voluntary: 0 };
     byPosVpip[h.position].total++;
-    if (h.preFlopAction !== 'fold') byPosVpip[h.position].voluntary++;
+    if (isVoluntary(h.preFlopAction)) byPosVpip[h.position].voluntary++;
     byRange[h.range] = (byRange[h.range] || 0) + 1;
   }
 
@@ -178,7 +190,6 @@ function calculateStats(hands: Hand[]) {
   const foldTo3BDenom = ac.foldTo3Bet + ac.callThreeBet + ac.fourBetPlus;
   const cBetOpps = cBetMade + cBetMissed;
   const wins = rc.sdWin + rc.nsWin;
-  const sdTotal = rc.sdWin + rc.sdLoss;
 
   const pct = (n: number, d: number) => d > 0 ? (n / d) * 100 : 0;
   const foldPfCount = ac.fold + ac.foldToRaise;
@@ -193,8 +204,8 @@ function calculateStats(hands: Hand[]) {
     foldPf: foldPfPct,
     cBet: pct(cBetMade, cBetOpps),
     winRate: pct(wins, voluntary),
-    wtsd: pct(sdTotal, sawFlop),
-    wsd: pct(rc.sdWin, sdTotal),
+    wtsd: pct(wentToShowdown, sawFlop),
+    wsd: pct(sdWinReal, wentToShowdown),
     ats: pct(steals, stealOpps),
     actions: ac, results: rc, byPos, byPosVpip, byRange, sawFlop,
   };
@@ -447,7 +458,7 @@ export default function PokerLogger() {
       timestamp: Date.now(),
       position: currentPos, card1, card2, handType,
       preFlopAction: finalAction,
-      flopAction: ['fold', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(finalAction) ? 'none' : finalFlopAction,
+      flopAction: ['fold', 'fold_to_3bet', 'fold_to_4bet_plus', 'fold_to_raise'].includes(finalAction) ? 'none' : finalFlopAction,
       result: finalResult,
       range: getHandRange(card1, card2, handType),
       playerCount: session.playerCount,
