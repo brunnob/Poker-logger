@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Trash2, Undo2, BarChart3, History as HistoryIcon, ClipboardList, RotateCcw } from 'lucide-react';
+import { Trash2, Undo2, BarChart3, History as HistoryIcon, ClipboardList, RotateCcw, StickyNote } from 'lucide-react';
 
 // ============================================================
 // TYPES
@@ -28,6 +28,7 @@ interface Hand {
   range: HandRange;
   playerCount: number;
   smallStackMode: boolean;
+  notes?: string;
 }
 
 interface SessionState {
@@ -355,7 +356,13 @@ function parseImport(text: string, defaultPlayerCount: number = 6): ParseResult 
     const raw = lines[i].trim();
     if (!raw) continue;
     if (raw.startsWith('===') || raw.startsWith('---')) continue;
-    if (/^(data|date|total|jogadores|players)\s*:/i.test(raw)) continue;
+    if (/^(data|date|total|jogadores|players|notes|notas)\s*:/i.test(raw)) {
+      if (/^(notes|notas)\s*:/i.test(raw) && result.hands.length > 0) {
+        const note = raw.replace(/^(notes|notas)\s*:\s*/i, '').trim();
+        if (note) result.hands[result.hands.length - 1].notes = note;
+      }
+      continue;
+    }
     const parsed = parseLine(raw);
     if ('error' in parsed) {
       result.errors.push({ line: i + 1, text: raw, reason: parsed.error });
@@ -383,6 +390,7 @@ export default function PokerLogger() {
   const [preFlopAction, setPreFlopAction] = useState<PreFlopAction | null>(null);
   const [flopAction, setFlopAction] = useState<FlopAction>('none');
   const [result, setResult] = useState<HandResult | null>(null);
+  const [notes, setNotes] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [smallStackMode, setSmallStackMode] = useState(false);
@@ -424,6 +432,7 @@ export default function PokerLogger() {
   const resetForm = () => {
     setCard1(null); setCard2(null); setHandType(null);
     setPreFlopAction(null); setFlopAction('none'); setResult(null);
+    setNotes('');
   };
 
   const saveHand = (overrideResult?: HandResult, overrideAction?: PreFlopAction, overrideFlopAction?: FlopAction) => {
@@ -432,6 +441,7 @@ export default function PokerLogger() {
     const finalFlopAction = overrideFlopAction || flopAction;
     if (!card1 || !card2 || !handType || !finalAction || !finalResult) return;
 
+    const trimmedNotes = notes.trim();
     const newHand: Hand = {
       id: Math.random().toString(36).slice(2, 11),
       timestamp: Date.now(),
@@ -442,6 +452,7 @@ export default function PokerLogger() {
       range: getHandRange(card1, card2, handType),
       playerCount: session.playerCount,
       smallStackMode,
+      ...(trimmedNotes && { notes: trimmedNotes }),
     };
 
     setSession(prev => ({
@@ -490,6 +501,14 @@ export default function PokerLogger() {
 
   const deleteHand = (id: string) => {
     setSession(prev => ({ ...prev, hands: prev.hands.filter(h => h.id !== id) }));
+  };
+
+  const updateHandNote = (id: string, newNotes: string) => {
+    const trimmed = newNotes.trim();
+    setSession(prev => ({
+      ...prev,
+      hands: prev.hands.map(h => h.id === id ? { ...h, notes: trimmed || undefined } : h),
+    }));
   };
 
   const setPlayerCount = (n: number) => {
@@ -740,13 +759,26 @@ export default function PokerLogger() {
                 </Section>
               </div>
             )}
+
+            {card1 && card2 && handType && (
+              <Section title="Notas" step="07" optional>
+                <textarea
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Contexto, leitura do vilão, observação..."
+                  rows={3}
+                  className="w-full mono text-xs p-3 bg-stone-50 border border-stone-300 focus:border-stone-900 outline-none resize-y placeholder:text-stone-400"
+                />
+              </Section>
+            )}
           </div>
         )}
 
         {tab === 'stats' && <StatsView stats={stats} hands={session.hands} />}
         {tab === 'history' && (
           <HistoryView hands={session.hands} existingCount={session.hands.length}
-            onDelete={deleteHand} onImport={importHands} onToast={showToast} />
+            onDelete={deleteHand} onImport={importHands} onToast={showToast}
+            onUpdateNote={updateHandNote} />
         )}
       </main>
 
@@ -1015,14 +1047,16 @@ function ResultBars({ results, total, foldPf }: { results: { sdWin: number; sdLo
 // ============================================================
 // HISTORY + IMPORT
 // ============================================================
-function HistoryView({ hands, existingCount, onDelete, onImport, onToast }: {
+function HistoryView({ hands, existingCount, onDelete, onImport, onToast, onUpdateNote }: {
   hands: Hand[]; existingCount: number;
   onDelete: (id: string) => void;
   onImport: (hands: Omit<Hand, 'id' | 'timestamp'>[], mode: 'replace' | 'append') => void;
   onToast: (msg: string) => void;
+  onUpdateNote: (id: string, notes: string) => void;
 }) {
   const [showImport, setShowImport] = useState(false);
   const [exportState, setExportState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [editingNote, setEditingNote] = useState<Hand | null>(null);
 
   const exportText = async () => {
     if (hands.length === 0) return;
@@ -1033,6 +1067,7 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast }: {
       txt += `#${num} ${date} | ${handNotation(h.card1, h.card2, h.handType)} ${h.position} | ${ACTION_LABEL[h.preFlopAction]}`;
       if (h.flopAction !== 'none') txt += ` → ${ACTION_LABEL[h.flopAction]}`;
       txt += ` | ${h.result.toUpperCase().replace('_', ' ')}\n`;
+      if (h.notes) txt += `   Notes: ${h.notes}\n`;
     });
     const hasSmallStack = hands.some(h => h.smallStackMode);
     if (hasSmallStack) {
@@ -1102,6 +1137,11 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast }: {
                 <span className={`mono text-[10px] font-bold uppercase tracking-wider ${
                   isFold ? 'text-stone-400' : isWin ? 'text-emerald-700' : 'text-rose-700'
                 }`}>{isFold ? 'FOLD' : h.result.replace('_', ' ').toUpperCase()}</span>
+                <button onClick={() => setEditingNote(h)}
+                  className={`transition-colors ${h.notes ? 'text-stone-700 hover:text-stone-900' : 'text-stone-300 hover:text-stone-600'}`}
+                  title={h.notes ? 'Editar nota' : 'Adicionar nota'}>
+                  <StickyNote className="w-3.5 h-3.5" fill={h.notes ? 'currentColor' : 'none'} />
+                </button>
                 <button onClick={() => onDelete(h.id)} className="text-stone-400 hover:text-rose-600 transition-colors" title="Apagar">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -1110,6 +1150,60 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast }: {
           })}
         </div>
       )}
+
+      {editingNote && (
+        <NoteModal hand={editingNote}
+          onSave={(text) => { onUpdateNote(editingNote.id, text); setEditingNote(null); }}
+          onClose={() => setEditingNote(null)} />
+      )}
+    </div>
+  );
+}
+
+function NoteModal({ hand, onSave, onClose }: {
+  hand: Hand;
+  onSave: (notes: string) => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState(hand.notes || '');
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const notation = handNotation(hand.card1, hand.card2, hand.handType);
+  const summary = `${notation} · ${hand.position} · ${ACTION_LABEL[hand.preFlopAction]}${hand.flopAction !== 'none' ? ` · ${ACTION_LABEL[hand.flopAction]}` : ''}`;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white border-2 border-stone-900 w-full max-w-md p-4 space-y-3" onClick={e => e.stopPropagation()}>
+        <div>
+          <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500">Nota da mão</h3>
+          <p className="num text-sm font-bold mt-1">{summary}</p>
+        </div>
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Contexto, leitura do vilão, observação..."
+          rows={6}
+          className="w-full mono text-xs p-3 bg-stone-50 border border-stone-300 focus:border-stone-900 outline-none resize-y placeholder:text-stone-400"
+        />
+        <div className="grid grid-cols-2 gap-1">
+          <button onClick={onClose}
+            className="py-2.5 mono text-xs font-bold uppercase tracking-wider border border-stone-300 hover:border-stone-900 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={() => onSave(text)}
+            className="py-2.5 mono text-xs font-bold uppercase tracking-wider bg-stone-900 text-stone-50 border border-stone-900 hover:bg-stone-800 transition-colors">
+            Salvar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
