@@ -921,16 +921,16 @@ function RangeDistribution({ byRange, total, hands }: { byRange: Record<string, 
               type="button"
               onClick={() => isClickable && setExpanded(isOpen ? null : group.label)}
               disabled={!isClickable}
-              className={`w-full flex items-center border px-2 py-1 transition-colors ${
+              className={`w-full h-8 flex items-center border px-2 py-2 transition-colors ${
                 isOpen ? 'border-stone-900 bg-stone-50' : 'border-stone-300'
               } ${isClickable ? 'hover:border-stone-900 cursor-pointer' : 'cursor-default'}`}
             >
               <span className="mono text-[10px] text-stone-400 w-3">{isClickable ? (isOpen ? '−' : '+') : ''}</span>
               <span className="mono text-[11px] font-bold w-20 text-left">{group.label}</span>
-              <span className="num text-[11px] text-stone-500 w-8 text-left">{count}</span>
+              <span className={`num text-[11px] w-8 text-left ${count > 0 ? 'text-stone-500' : 'text-stone-300'}`}>{count}</span>
               <span className="num text-[11px] text-stone-400 w-12 text-left">exp: {formatExpected(expected)}</span>
               <div className="flex-1 h-1 bg-stone-100 mx-2"><div className="h-full bg-stone-900" style={{ width: `${(count / total) * 100}%` }} /></div>
-              <span className="num text-[11px] font-bold w-10 text-right">{pct}%</span>
+              <span className={`num text-[11px] font-bold w-10 text-right ${count > 0 ? '' : 'text-stone-300'}`}>{pct}%</span>
             </button>
             {isOpen && groupHands.length > 0 && (
               <div className="border border-t-0 border-stone-900 bg-white divide-y divide-stone-100">
