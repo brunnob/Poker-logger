@@ -921,7 +921,7 @@ function RangeDistribution({ byRange, total, hands }: { byRange: Record<string, 
               type="button"
               onClick={() => isClickable && setExpanded(isOpen ? null : group.label)}
               disabled={!isClickable}
-              className={`w-full h-8 flex items-center border px-2 py-2 transition-colors ${
+              className={`w-full flex items-center border px-2 py-3 transition-colors ${
                 isOpen ? 'border-stone-900 bg-stone-50' : 'border-stone-300'
               } ${isClickable ? 'hover:border-stone-900 cursor-pointer' : 'cursor-default'}`}
             >
