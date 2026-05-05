@@ -52,47 +52,26 @@ const POSITIONS_BY_COUNT: Record<number, PokerPosition[]> = {
 
 const STORAGE_KEY = 'poker_session_v1';
 
+const RANK_ORDER: Record<CardRank, number> = { 'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 };
+
+// 169 starting hands bucketed by cumulative top-X% strength (heads-up equity + standard preflop ranking).
+// Each bucket label corresponds to its cumulative threshold; empty bucket falls through to '60-70%'.
+const HAND_RANGE_MAP: Record<string, HandRange> = {
+  'AA':'3%','KK':'3%','QQ':'3%','JJ':'3%','AKs':'3%',
+  'AKo':'5%','TT':'5%','AQs':'5%','AJs':'5%','KQs':'5%',
+  'AQo':'8%','99':'8%','ATs':'8%','KJs':'8%','KTs':'8%','QJs':'8%','AJo':'8%',
+  'KQo':'10%','88':'10%','JTs':'10%','A9s':'10%',
+  'KJo':'12-15%','ATo':'12-15%','77':'12-15%','QTs':'12-15%','KTo':'12-15%','QJo':'12-15%',
+  'QTo':'18-20%','JTo':'18-20%','66':'18-20%','T9s':'18-20%','A8s':'18-20%','K9s':'18-20%','J9s':'18-20%','Q9s':'18-20%','55':'18-20%','A7s':'18-20%','98s':'18-20%','87s':'18-20%','T8s':'18-20%','A6s':'18-20%',
+  '76s':'25%','A5s':'25%','65s':'25%','A4s':'25%','A3s':'25%','A2s':'25%','54s':'25%','44':'25%','K8s':'25%','K7s':'25%','Q8s':'25%','J8s':'25%','33':'25%','22':'25%','K6s':'25%',
+  'T7s':'30-35%','97s':'30-35%','86s':'30-35%','75s':'30-35%','Q7s':'30-35%','J7s':'30-35%','64s':'30-35%','53s':'30-35%','K5s':'30-35%','Q6s':'30-35%','J6s':'30-35%','T6s':'30-35%','96s':'30-35%','85s':'30-35%','74s':'30-35%','K4s':'30-35%','Q5s':'30-35%','J5s':'30-35%','43s':'30-35%','K3s':'30-35%','K2s':'30-35%','Q4s':'30-35%','J4s':'30-35%','T5s':'30-35%','95s':'30-35%','63s':'30-35%','52s':'30-35%','42s':'30-35%','32s':'30-35%','Q3s':'30-35%','J3s':'30-35%','T4s':'30-35%','84s':'30-35%',
+  '94s':'40-45%','73s':'40-45%','62s':'40-45%','Q2s':'40-45%','J2s':'40-45%','T3s':'40-45%','T2s':'40-45%','83s':'40-45%','93s':'40-45%','82s':'40-45%','72s':'40-45%','92s':'40-45%','A9o':'40-45%','K9o':'40-45%','Q9o':'40-45%','J9o':'40-45%','T9o':'40-45%','A8o':'40-45%','A7o':'40-45%',
+  'A6o':'50%','K8o':'50%','Q8o':'50%','J8o':'50%','A5o':'50%',
+  'A4o':'60-70%','T8o':'60-70%','K7o':'60-70%','Q7o':'60-70%','A3o':'60-70%','A2o':'60-70%','J7o':'60-70%','T7o':'60-70%','98o':'60-70%','87o':'60-70%','76o':'60-70%','K6o':'60-70%','65o':'60-70%','K5o':'60-70%','K4o':'60-70%','Q6o':'60-70%','54o':'60-70%','K3o':'60-70%','K2o':'60-70%','Q5o':'60-70%','J6o':'60-70%','T6o':'60-70%','97o':'60-70%','Q4o':'60-70%','Q3o':'60-70%','Q2o':'60-70%','J5o':'60-70%','T5o':'60-70%','86o':'60-70%','75o':'60-70%','J4o':'60-70%','T4o':'60-70%','96o':'60-70%','J3o':'60-70%','J2o':'60-70%','T3o':'60-70%','T2o':'60-70%','95o':'60-70%','85o':'60-70%','64o':'60-70%','74o':'60-70%','53o':'60-70%','84o':'60-70%','94o':'60-70%','93o':'60-70%','92o':'60-70%','83o':'60-70%','82o':'60-70%','73o':'60-70%','72o':'60-70%','63o':'60-70%','62o':'60-70%','52o':'60-70%','43o':'60-70%','42o':'60-70%','32o':'60-70%',
+};
+
 function getHandRange(card1: CardRank, card2: CardRank, handType: HandType): HandRange {
-  const rankOrder: Record<CardRank, number> = { 'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 };
-  const r1 = rankOrder[card1], r2 = rankOrder[card2];
-  const higher = r1 >= r2 ? card1 : card2;
-  const lower = r1 >= r2 ? card2 : card1;
-
-  if (handType === 'pair') {
-    if (['A', 'K', 'Q'].includes(higher)) return '3%';
-    if (['J', 'T'].includes(higher)) return '5%';
-    if (['9', '8'].includes(higher)) return '8%';
-    if (['7', '6'].includes(higher)) return '10%';
-    if (['5', '4'].includes(higher)) return '12-15%';
-    return '18-20%';
-  }
-
-  if (handType === 'suited') {
-    if (higher === 'A' && lower === 'K') return '3%';
-    if ((higher === 'A' && lower === 'Q') || (higher === 'K' && lower === 'Q')) return '5%';
-    if ((higher === 'A' && lower === 'T') || (higher === 'K' && ['J', 'T'].includes(lower)) || (higher === 'Q' && lower === 'J')) return '8%';
-    if ((higher === 'A' && lower === '9') || (higher === 'K' && lower === '9') || (higher === 'Q' && lower === 'T') || (higher === 'J' && lower === 'T')) return '10%';
-    if ((higher === 'A' && lower === '8') || (higher === 'K' && lower === '8') || (higher === 'Q' && lower === '9') || (higher === 'J' && lower === '9') || (higher === 'T' && lower === '9') || (higher === '9' && lower === '8')) return '12-15%';
-    if ((higher === 'K' && lower === '7') || (higher === 'Q' && lower === '8') || (higher === 'J' && lower === '8') || (higher === 'T' && lower === '8') || (higher === '9' && lower === '7') || (higher === '8' && lower === '7')) return '18-20%';
-    if ((higher === 'K' && lower === '6') || (higher === 'Q' && lower === '7') || (higher === 'J' && lower === '7') || (higher === 'T' && lower === '7') || (higher === '9' && lower === '6') || (higher === '8' && lower === '6') || (higher === '7' && lower === '6')) return '25%';
-    if ((higher === 'K' && ['4', '5'].includes(lower)) || (higher === 'Q' && lower === '6') || (higher === 'J' && lower === '6') || (higher === 'T' && lower === '6') || (higher === '9' && lower === '5') || (higher === '8' && lower === '5') || (higher === '7' && lower === '5') || (higher === '6' && lower === '5')) return '30-35%';
-    return '40-45%';
-  }
-
-  if (handType === 'offsuit') {
-    if (higher === 'A' && lower === 'K') return '3%';
-    if (higher === 'A' && lower === 'Q') return '5%';
-    if ((higher === 'A' && lower === 'J') || (higher === 'K' && lower === 'Q')) return '8%';
-    if ((higher === 'A' && lower === 'T') || (higher === 'K' && lower === 'J')) return '10%';
-    if ((higher === 'A' && lower === '9') || (higher === 'K' && lower === 'T')) return '12-15%';
-    if ((higher === 'A' && lower === '8') || (higher === 'K' && lower === '9') || (higher === 'Q' && lower === 'T')) return '18-20%';
-    if ((higher === 'A' && lower === '7') || (higher === 'K' && lower === '8') || (higher === 'Q' && lower === '9') || (higher === 'J' && lower === 'T')) return '25%';
-    if ((higher === 'A' && lower === '5') || (higher === 'K' && lower === '7') || (higher === 'Q' && lower === '8') || (higher === 'J' && lower === '9')) return '30-35%';
-    if ((higher === 'A' && lower === '4') || (higher === 'K' && lower === '6') || (higher === 'Q' && lower === '7') || (higher === 'J' && lower === '8') || (higher === 'T' && lower === '8')) return '40-45%';
-    if ((higher === 'A' && lower === '3') || (higher === 'K' && lower === '5') || (higher === 'Q' && lower === '6') || (higher === 'J' && lower === '7') || (higher === 'T' && lower === '7') || (higher === '9' && lower === '8')) return '50%';
-    return '60-70%';
-  }
-  return '60-70%';
+  return HAND_RANGE_MAP[handNotation(card1, card2, handType)] || '60-70%';
 }
 
 const TOTAL_COMBOS = 1326;
@@ -179,7 +158,7 @@ function calculateStats(hands: Hand[]) {
     if (!byPosVpip[h.position]) byPosVpip[h.position] = { total: 0, voluntary: 0 };
     byPosVpip[h.position].total++;
     if (isVoluntary(h.preFlopAction)) byPosVpip[h.position].voluntary++;
-    byRange[h.range] = (byRange[h.range] || 0) + 1;
+    byRange[getHandRange(h.card1, h.card2, h.handType)] = (byRange[getHandRange(h.card1, h.card2, h.handType)] || 0) + 1;
   }
 
   const total = hands.length;
@@ -224,8 +203,9 @@ function advancePosition(currentIndex: number, playerCount: number): number {
 }
 
 function handNotation(card1: CardRank, card2: CardRank, handType: HandType): string {
+  const [higher, lower] = RANK_ORDER[card1] >= RANK_ORDER[card2] ? [card1, card2] : [card2, card1];
   const suffix = handType === 'pair' ? '' : handType === 'suited' ? 's' : 'o';
-  return `${card1}${card2}${suffix}`;
+  return `${higher}${lower}${suffix}`;
 }
 
 const ACTION_LABEL: Record<PreFlopAction | FlopAction, string> = {
@@ -907,7 +887,7 @@ function VpipByPosition({ byPosVpip }: { byPosVpip: Record<string, { total: numb
 // ============================================================
 // RANGE DISTRIBUTION HELPER
 // ============================================================
-function RangeDistribution({ byRange, total }: { byRange: Record<string, number>; total: number }) {
+function RangeDistribution({ byRange, total, hands }: { byRange: Record<string, number>; total: number; hands: Hand[] }) {
   const rangeGroups: { label: string; ranges: HandRange[] }[] = [
     { label: 'Top 3%', ranges: ['3%'] },
     { label: 'Top 5%', ranges: ['5%'] },
@@ -921,6 +901,8 @@ function RangeDistribution({ byRange, total }: { byRange: Record<string, number>
     { label: 'Acima 60%', ranges: ['60-70%'] },
   ];
 
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   return (
     <div className="space-y-1">
       {rangeGroups.map(group => {
@@ -928,13 +910,51 @@ function RangeDistribution({ byRange, total }: { byRange: Record<string, number>
         const combos = group.ranges.reduce((sum, r) => sum + (BUCKET_WEIGHTS[r] || 0), 0);
         const expected = total * combos / TOTAL_COMBOS;
         const pct = ((count / total) * 100).toFixed(0);
+        const isOpen = expanded === group.label;
+        const isClickable = count > 0;
+        const groupHands = isOpen
+          ? hands.filter(h => group.ranges.includes(getHandRange(h.card1, h.card2, h.handType)))
+          : [];
         return (
-          <div key={group.label} className="flex items-center border border-stone-300 px-2 py-1">
-            <span className="mono text-[11px] font-bold w-20">{group.label}</span>
-            <span className="num text-[11px] text-stone-500 w-8">{count}</span>
-            <span className="num text-[11px] text-stone-400 w-12">exp: {formatExpected(expected)}</span>
-            <div className="flex-1 h-1 bg-stone-100 mx-2"><div className="h-full bg-stone-900" style={{ width: `${(count / total) * 100}%` }} /></div>
-            <span className="num text-[11px] font-bold w-10 text-right">{pct}%</span>
+          <div key={group.label}>
+            <button
+              type="button"
+              onClick={() => isClickable && setExpanded(isOpen ? null : group.label)}
+              disabled={!isClickable}
+              className={`w-full flex items-center border px-2 py-1 transition-colors ${
+                isOpen ? 'border-stone-900 bg-stone-50' : 'border-stone-300'
+              } ${isClickable ? 'hover:border-stone-900 cursor-pointer' : 'cursor-default'}`}
+            >
+              <span className="mono text-[10px] text-stone-400 w-3">{isClickable ? (isOpen ? '−' : '+') : ''}</span>
+              <span className="mono text-[11px] font-bold w-20 text-left">{group.label}</span>
+              <span className="num text-[11px] text-stone-500 w-8 text-left">{count}</span>
+              <span className="num text-[11px] text-stone-400 w-12 text-left">exp: {formatExpected(expected)}</span>
+              <div className="flex-1 h-1 bg-stone-100 mx-2"><div className="h-full bg-stone-900" style={{ width: `${(count / total) * 100}%` }} /></div>
+              <span className="num text-[11px] font-bold w-10 text-right">{pct}%</span>
+            </button>
+            {isOpen && groupHands.length > 0 && (
+              <div className="border border-t-0 border-stone-900 bg-white divide-y divide-stone-100">
+                {groupHands.map(h => {
+                  const isWin = h.result === 'sd_win' || h.result === 'ns_win';
+                  const isFold = ['fold', 'fold_to_3bet', 'fold_to_4bet_plus', 'fold_to_raise'].includes(h.preFlopAction);
+                  const resultColor = isFold ? 'text-stone-400' : isWin ? 'text-emerald-700' : 'text-rose-700';
+                  return (
+                    <div key={h.id} className="flex items-center gap-2 px-2 py-1.5">
+                      <span className="num text-[11px] font-bold w-12">{handNotation(h.card1, h.card2, h.handType)}</span>
+                      <span className="mono text-[9px] font-bold uppercase tracking-wider text-stone-500 w-10">{h.position}</span>
+                      <span className="mono text-[9px] uppercase tracking-wider text-stone-700 flex-1 truncate">
+                        {ACTION_LABEL[h.preFlopAction]}
+                        {h.flopAction !== 'none' && <> · {ACTION_LABEL[h.flopAction]}</>}
+                      </span>
+                      <span className={`mono text-[9px] font-bold uppercase tracking-wider ${resultColor}`}>
+                        {isFold ? 'FOLD' : h.result.replace('_', ' ').toUpperCase()}
+                      </span>
+                      {h.notes && <StickyNote className="w-3 h-3 text-stone-700" fill="currentColor" />}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })}
@@ -947,11 +967,15 @@ function RangeDistribution({ byRange, total }: { byRange: Record<string, number>
 // ============================================================
 function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>; hands: Hand[] }) {
   const [scope, setScope] = useState<'all' | 'last10' | 'last20'>('all');
+  const scopedHands = useMemo(() => {
+    if (scope === 'last10') return hands.slice(0, 10);
+    if (scope === 'last20') return hands.slice(0, 20);
+    return hands;
+  }, [scope, hands]);
   const scoped = useMemo(() => {
-    if (scope === 'last10') return calculateStats(hands.slice(0, 10));
-    if (scope === 'last20') return calculateStats(hands.slice(0, 20));
-    return stats;
-  }, [scope, hands, stats]);
+    if (scope === 'all') return stats;
+    return calculateStats(scopedHands);
+  }, [scope, scopedHands, stats]);
 
   if (hands.length === 0) {
     return <div className="text-center py-20 mono text-xs uppercase tracking-widest text-stone-400">Nenhuma mão registrada</div>;
@@ -992,7 +1016,7 @@ function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>;
 
       <div>
         <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Distribuição de Ranges</h3>
-        <RangeDistribution byRange={scoped.byRange} total={scoped.total} />
+        <RangeDistribution byRange={scoped.byRange} total={scoped.total} hands={scopedHands} />
       </div>
 
       <div>
@@ -1138,7 +1162,7 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast, onUpda
               <div key={h.id} className={`bg-stone-50 border border-stone-200 border-l-4 ${accent} p-3 flex items-center gap-3`}>
                 <span className="num text-[10px] font-bold text-stone-400 w-8">#{num}</span>
                 <span className="num text-base font-bold w-14">{notation}</span>
-                <span className="mono text-[10px] text-stone-400">{h.range}</span>
+                <span className="mono text-[10px] text-stone-400">{getHandRange(h.card1, h.card2, h.handType)}</span>
                 {h.smallStackMode && <span className="mono text-[10px] font-bold text-stone-400 bg-stone-200 px-2 py-0.5 rounded">SS</span>}
                 <span className="mono text-[10px] font-bold uppercase tracking-wider text-stone-500 w-10">{h.position}</span>
                 <span className="mono text-[10px] uppercase tracking-wider text-stone-700 flex-1 truncate">
