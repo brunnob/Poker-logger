@@ -10,7 +10,7 @@ type PokerPosition = 'BB' | 'SB' | 'BTN' | 'CO' | 'HJ' | 'LJ' | 'UTG+2' | 'UTG+1
 type PreFlopAction =
   | 'fold' | 'limp' | 'open' | 'call_open'
   | '3bet' | 'call_3bet' | '4bet_plus'
-  | 'fold_to_3bet' | 'fold_to_4bet_plus' | 'fold_to_raise';
+  | 'fold_to_3bet' | 'fold_to_4bet_plus' | 'fold_to_raise' | 'fold_to_allin';
 type FlopAction = 'cbet' | 'fold_to_cbet' | 'no_cbet' | 'none';
 type HandResult = 'sd_win' | 'sd_loss' | 'ns_win' | 'ns_loss';
 type HandRange = '3%' | '5%' | '8%' | '10%' | '12-15%' | '18-20%' | '25%' | '30-35%' | '40-45%' | '50%' | '60-70%';
@@ -97,14 +97,21 @@ function formatExpected(n: number): string {
   return n >= 10 ? Math.round(n).toString() : n.toFixed(1);
 }
 
+const FOLD_PREFLOP_ACTIONS: PreFlopAction[] = ['fold', 'fold_to_raise', 'fold_to_3bet', 'fold_to_4bet_plus', 'fold_to_allin'];
+const isFoldPreflop = (a: PreFlopAction) => FOLD_PREFLOP_ACTIONS.includes(a);
+
 const VOLUNTARY_ACTIONS: PreFlopAction[] = [
   'limp', 'open', 'call_open', '3bet', 'call_3bet', '4bet_plus',
   'fold_to_3bet', 'fold_to_4bet_plus',
 ];
-const isVoluntary = (a: PreFlopAction) => VOLUNTARY_ACTIONS.includes(a);
+const isVoluntary = (h: Pick<Hand, 'preFlopAction' | 'position'>) => {
+  // BB limping = checking the option for free, not voluntary
+  if (h.preFlopAction === 'limp' && h.position === 'BB') return false;
+  return VOLUNTARY_ACTIONS.includes(h.preFlopAction);
+};
 
 function calculateStats(hands: Hand[]) {
-  const ac = { fold: 0, limp: 0, open: 0, callOpen: 0, threeBet: 0, callThreeBet: 0, fourBetPlus: 0, foldTo3Bet: 0, foldTo4BetPlus: 0, foldToRaise: 0 };
+  const ac = { fold: 0, limp: 0, open: 0, callOpen: 0, threeBet: 0, callThreeBet: 0, fourBetPlus: 0, foldTo3Bet: 0, foldTo4BetPlus: 0, foldToRaise: 0, foldToAllin: 0 };
   const rc = { sdWin: 0, sdLoss: 0, nsWin: 0, nsLoss: 0 };
   let cBetMade = 0, cBetMissed = 0, sawFlop = 0, wentToShowdown = 0, sdWinReal = 0;
   const byPos: Record<string, { hands: number; wins: number }> = {};
@@ -127,6 +134,7 @@ function calculateStats(hands: Hand[]) {
       case 'fold_to_3bet': ac.foldTo3Bet++; break;
       case 'fold_to_4bet_plus': ac.foldTo4BetPlus++; break;
       case 'fold_to_raise': ac.foldToRaise++; break;
+      case 'fold_to_allin': ac.foldToAllin++; break;
     }
     const stealPositions = h.playerCount === 2 ? [] : h.playerCount === 3 ? ['BTN'] : ['BTN', 'CO'];
     if (stealPositions.includes(h.position)) {
@@ -150,19 +158,19 @@ function calculateStats(hands: Hand[]) {
       wentToShowdown++;
       if (h.result === 'sd_win') sdWinReal++;
     }
-    if (isVoluntary(h.preFlopAction)) {
+    if (isVoluntary(h)) {
       if (!byPos[h.position]) byPos[h.position] = { hands: 0, wins: 0 };
       byPos[h.position].hands++;
       if (h.result === 'sd_win' || h.result === 'ns_win') byPos[h.position].wins++;
     }
     if (!byPosVpip[h.position]) byPosVpip[h.position] = { total: 0, voluntary: 0 };
     byPosVpip[h.position].total++;
-    if (isVoluntary(h.preFlopAction)) byPosVpip[h.position].voluntary++;
+    if (isVoluntary(h)) byPosVpip[h.position].voluntary++;
     byRange[getHandRange(h.card1, h.card2, h.handType)] = (byRange[getHandRange(h.card1, h.card2, h.handType)] || 0) + 1;
   }
 
   const total = hands.length;
-  const voluntary = ac.limp + ac.open + ac.callOpen + ac.threeBet + ac.callThreeBet + ac.fourBetPlus + ac.foldTo3Bet + ac.foldTo4BetPlus;
+  const voluntary = hands.filter(isVoluntary).length;
   const pfrHands = ac.open + ac.threeBet + ac.fourBetPlus + ac.foldTo3Bet + ac.foldTo4BetPlus;
   const threeBetOpps = ac.callOpen + ac.threeBet + ac.foldTo4BetPlus;
   const threeBetCount = ac.threeBet + ac.foldTo4BetPlus;
@@ -171,7 +179,7 @@ function calculateStats(hands: Hand[]) {
   const wins = rc.sdWin + rc.nsWin;
 
   const pct = (n: number, d: number) => d > 0 ? (n / d) * 100 : 0;
-  const foldPfCount = ac.fold + ac.foldToRaise;
+  const foldPfCount = ac.fold + ac.foldToRaise + ac.foldToAllin;
   const foldPfPct = pct(foldPfCount, total);
 
   return {
@@ -211,7 +219,7 @@ function handNotation(card1: CardRank, card2: CardRank, handType: HandType): str
 const ACTION_LABEL: Record<PreFlopAction | FlopAction, string> = {
   fold: 'Fold', limp: 'Limp', open: 'Open', call_open: 'Call Open',
   '3bet': '3-Bet', call_3bet: 'Call 3B', '4bet_plus': '4-Bet+',
-  fold_to_3bet: 'Fold 3B', fold_to_4bet_plus: 'Fold 4B+', fold_to_raise: 'Fold Raise',
+  fold_to_3bet: 'Fold 3B', fold_to_4bet_plus: 'Fold 4B+', fold_to_raise: 'Fold Raise', fold_to_allin: 'Fold All-in',
   cbet: 'C-Bet', fold_to_cbet: 'Fold C-Bet', no_cbet: 'Check', none: '—',
 };
 
@@ -238,6 +246,7 @@ const PREFLOP_ALIASES: Record<string, PreFlopAction> = {
   'foldto4bet': 'fold_to_4bet_plus', 'foldto4bet+': 'fold_to_4bet_plus', 'foldto4betplus': 'fold_to_4bet_plus',
   'fold4b+': 'fold_to_4bet_plus', 'fold4b': 'fold_to_4bet_plus', 'fold4bet': 'fold_to_4bet_plus',
   'foldtoraise': 'fold_to_raise', 'foldraise': 'fold_to_raise',
+  'foldtoallin': 'fold_to_allin', 'foldallin': 'fold_to_allin', 'foldpallin': 'fold_to_allin', 'foldpvallin': 'fold_to_allin',
 };
 
 const FLOP_ALIASES: Record<string, FlopAction> = {
@@ -274,6 +283,17 @@ function parseCompactHand(token: string): { card1: CardRank; card2: CardRank; ha
 }
 
 function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { error: string } {
+  // Extract inline Notes: ... and SS mode markers before tokenizing
+  let notes: string | undefined;
+  const notesMatch = line.match(/[|·]?\s*Notes?\s*:\s*(.+?)\s*$/i);
+  if (notesMatch) {
+    notes = notesMatch[1].trim();
+    line = line.slice(0, notesMatch.index);
+  }
+  const ssMatch = line.match(/[|·]?\s*SS\s*mode\b/i);
+  const smallStackMode = !!ssMatch;
+  if (ssMatch) line = line.slice(0, ssMatch.index) + line.slice(ssMatch.index + ssMatch[0].length);
+
   let cleaned = line.replace(/^#\d+\s+\d{1,2}:\d{2}(:\d{2})?\s*\|?/, '');
   cleaned = cleaned.replace(/[|→·,]/g, ' ');
   const tokens = cleaned.trim().split(/\s+/).filter(Boolean);
@@ -323,12 +343,13 @@ function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { error: stri
   if (!position) return { error: 'posição não reconhecida' };
   if (!preFlopAction) return { error: 'ação pré-flop não reconhecida' };
 
-  const isFold = ['fold', 'fold_to_3bet', 'fold_to_4bet_plus', 'fold_to_raise'].includes(preFlopAction);
+  const isFold = isFoldPreflop(preFlopAction);
   if (isFold) {
     return {
       position, card1: hand.card1, card2: hand.card2, handType: hand.handType,
       preFlopAction, flopAction: 'none', result: 'ns_loss',
-      range: getHandRange(hand.card1, hand.card2, hand.handType), playerCount: 6, smallStackMode: false,
+      range: getHandRange(hand.card1, hand.card2, hand.handType), playerCount: 6, smallStackMode,
+      ...(notes && { notes }),
     };
   }
   if (!result) return { error: 'resultado faltando (sd_win/sd_loss/ns_win/ns_loss)' };
@@ -336,7 +357,8 @@ function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { error: stri
   return {
     position, card1: hand.card1, card2: hand.card2, handType: hand.handType,
     preFlopAction, flopAction, result,
-    range: getHandRange(hand.card1, hand.card2, hand.handType), playerCount: 6, smallStackMode: false,
+    range: getHandRange(hand.card1, hand.card2, hand.handType), playerCount: 6, smallStackMode,
+    ...(notes && { notes }),
   };
 }
 
@@ -347,7 +369,7 @@ function parseImport(text: string, defaultPlayerCount: number = 6): ParseResult 
     const raw = lines[i].trim();
     if (!raw) continue;
     if (raw.startsWith('===') || raw.startsWith('---')) continue;
-    if (/^(data|date|total|jogadores|players|notes|notas)\s*:/i.test(raw)) {
+    if (/^(data|date|total|jogadores|players|notes|notas|obs)\s*:/i.test(raw)) {
       if (/^(notes|notas)\s*:/i.test(raw) && result.hands.length > 0) {
         const note = raw.replace(/^(notes|notas)\s*:\s*/i, '').trim();
         if (note) result.hands[result.hands.length - 1].notes = note;
@@ -395,6 +417,8 @@ export default function PokerLogger() {
       if (stored) setSession(JSON.parse(stored));
     } catch {}
     setLoaded(true);
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    window.scrollTo({ top: 0, behavior: 'auto' });
   }, []);
 
   // Save to localStorage
@@ -406,6 +430,10 @@ export default function PokerLogger() {
   useEffect(() => {
     if (card1 && card2 && card1 === card2) setHandType('pair');
   }, [card1, card2]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [tab]);
 
   const positions = getPositions(session.playerCount);
   const currentPos = positions[session.currentPositionIndex];
@@ -438,7 +466,7 @@ export default function PokerLogger() {
       timestamp: Date.now(),
       position: currentPos, card1, card2, handType,
       preFlopAction: finalAction,
-      flopAction: ['fold', 'fold_to_3bet', 'fold_to_4bet_plus', 'fold_to_raise'].includes(finalAction) ? 'none' : finalFlopAction,
+      flopAction: isFoldPreflop(finalAction) ? 'none' : finalFlopAction,
       result: finalResult,
       range: getHandRange(card1, card2, handType),
       playerCount: session.playerCount,
@@ -458,7 +486,7 @@ export default function PokerLogger() {
 
   const handlePreFlopAction = (action: PreFlopAction) => {
     setPreFlopAction(action);
-    if (['fold', 'fold_to_3bet', 'fold_to_4bet_plus', 'fold_to_raise'].includes(action)) {
+    if (isFoldPreflop(action)) {
       setTimeout(() => {
         if (card1 && card2 && handType) saveHand('ns_loss', action);
       }, 30);
@@ -534,7 +562,7 @@ export default function PokerLogger() {
   };
 
   const canSave = card1 && card2 && handType && preFlopAction && result !== null;
-  const isFoldPreFlop = preFlopAction && ['fold', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(preFlopAction);
+  const isFoldPreFlop = preFlopAction && isFoldPreflop(preFlopAction);
 
   if (!loaded) return <div className="p-8 font-mono text-sm text-stone-500">Carregando…</div>;
 
@@ -696,9 +724,10 @@ export default function PokerLogger() {
                   <div className="grid grid-cols-2 gap-1">
                     {([
                       ['fold', 'Fold'], ['fold_to_raise', 'Fold ao Raise'],
-                      ['limp', 'Limp'], ['open', 'Open'],
-                      ['call_open', 'Call Open'], ['3bet', '3-Bet'],
-                      ['call_3bet', 'Call 3-Bet'], ['4bet_plus', '4-Bet+'],
+                      ['fold_to_allin', 'Fold p/ All-in'], ['limp', 'Limp'],
+                      ['open', 'Open'], ['call_open', 'Call Open'],
+                      ['3bet', '3-Bet'], ['call_3bet', 'Call 3-Bet'],
+                      ['4bet_plus', '4-Bet+'],
                       ['fold_to_3bet', 'Fold ao 3-Bet'], ['fold_to_4bet_plus', 'Fold ao 4-Bet+'],
                     ] as [PreFlopAction, string][]).map(([action, label]) => (
                       <button key={action} onClick={() => handlePreFlopAction(action)}
@@ -936,7 +965,7 @@ function RangeDistribution({ byRange, total, hands }: { byRange: Record<string, 
               <div className="border border-t-0 border-stone-900 bg-white divide-y divide-stone-100">
                 {groupHands.map(h => {
                   const isWin = h.result === 'sd_win' || h.result === 'ns_win';
-                  const isFold = ['fold', 'fold_to_3bet', 'fold_to_4bet_plus', 'fold_to_raise'].includes(h.preFlopAction);
+                  const isFold = isFoldPreflop(h.preFlopAction);
                   const resultColor = isFold ? 'text-stone-400' : isWin ? 'text-emerald-700' : 'text-rose-700';
                   return (
                     <div key={h.id} className="flex items-center gap-2 px-2 py-1.5">
@@ -1101,15 +1130,11 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast, onUpda
       const date = new Date(h.timestamp).toLocaleTimeString('pt-BR');
       txt += `#${num} ${date} | ${handNotation(h.card1, h.card2, h.handType)} ${h.position} | ${ACTION_LABEL[h.preFlopAction]}`;
       if (h.flopAction !== 'none') txt += ` → ${ACTION_LABEL[h.flopAction]}`;
-      txt += ` | ${h.result.toUpperCase().replace('_', ' ')}\n`;
-      if (h.notes) txt += `   Notes: ${h.notes}\n`;
+      txt += ` | ${h.result.toUpperCase().replace('_', ' ')}`;
+      if (h.smallStackMode) txt += ` | SS mode`;
+      if (h.notes) txt += ` | Notes: ${h.notes}`;
+      txt += `\n`;
     });
-    const hasSmallStack = hands.some(h => h.smallStackMode);
-    if (hasSmallStack) {
-      const playerCounts = hands.filter(h => h.smallStackMode).map(h => h.playerCount);
-      const avgPlayers = Math.round(playerCounts.reduce((a, b) => a + b, 0) / playerCounts.length);
-      txt += `\nObs: Small stack | ${avgPlayers} jogadores`;
-    }
     try {
       await navigator.clipboard.writeText(txt);
       setExportState('copied');
@@ -1156,7 +1181,7 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast, onUpda
             const num = hands.length - i;
             const notation = handNotation(h.card1, h.card2, h.handType);
             const isWin = h.result === 'sd_win' || h.result === 'ns_win';
-            const isFold = ['fold', 'fold_to_raise', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(h.preFlopAction);
+            const isFold = isFoldPreflop(h.preFlopAction);
             const accent = isFold ? 'border-l-stone-300' : isWin ? 'border-l-emerald-500' : 'border-l-rose-500';
             return (
               <div key={h.id} className={`bg-stone-50 border border-stone-200 border-l-4 ${accent} p-3 flex items-center gap-3`}>
@@ -1302,7 +1327,7 @@ AA HJ open cbet sd_win`;
                 {preview.hands.slice(0, 5).map((h, i) => {
                   const notation = handNotation(h.card1, h.card2, h.handType);
                   const isWin = h.result === 'sd_win' || h.result === 'ns_win';
-                  const isFold = ['fold', 'fold_to_raise', 'fold_to_3bet', 'fold_to_4bet_plus'].includes(h.preFlopAction);
+                  const isFold = isFoldPreflop(h.preFlopAction);
                   const accent = isFold ? 'border-l-stone-300' : isWin ? 'border-l-emerald-500' : 'border-l-rose-500';
                   return (
                     <div key={i} className={`bg-stone-50 border border-stone-200 border-l-4 ${accent} p-2 flex items-center gap-3`}>
