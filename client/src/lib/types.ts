@@ -3,12 +3,12 @@
 // ============================================================
 export type CardRank = 'A' | 'K' | 'Q' | 'J' | 'T' | '9' | '8' | '7' | '6' | '5' | '4' | '3' | '2';
 export type HandType = 'pair' | 'suited' | 'offsuit';
-export type PokerPosition = 'BB' | 'SB' | 'BTN' | 'CO' | 'HJ' | 'LJ' | 'UTG+2' | 'UTG+1' | 'UTG';
+export type PokerPosition = 'BB' | 'SB' | 'BTN' | 'CO' | 'MP' | 'HJ' | 'LJ' | 'UTG+2' | 'UTG+1' | 'UTG';
 export type PreFlopAction =
   | 'fold' | 'limp' | 'open' | 'call_open'
   | '3bet' | 'call_3bet' | '4bet_plus'
-  | 'fold_to_3bet' | 'fold_to_4bet_plus' | 'fold_to_raise' | 'fold_to_allin';
-export type FlopAction = 'cbet' | 'fold_to_cbet' | 'no_cbet' | 'none';
+  | 'fold_to_3bet' | 'fold_to_4bet_plus' | 'fold_to_raise' | 'fold_to_allin' | 'limp_fold';
+export type FlopAction = 'cbet' | 'fold_to_cbet' | 'no_cbet' | 'none' | 'call_cbet';
 export type HandResult = 'sd_win' | 'sd_loss' | 'ns_win' | 'ns_loss';
 export type HandRange = '3%' | '5%' | '8%' | '10%' | '12-15%' | '18-20%' | '25%' | '30-35%' | '40-45%' | '50%' | '60-70%';
 
@@ -22,10 +22,10 @@ export interface Hand {
   preFlopAction: PreFlopAction;
   flopAction: FlopAction;
   result: HandResult;
-  range: HandRange;
   playerCount: number;
   smallStackMode: boolean;
   notes?: string;
+  fromImport?: boolean;
 }
 
 export interface SessionState {
@@ -55,7 +55,8 @@ export const ACTION_LABEL: Record<PreFlopAction | FlopAction, string> = {
   fold: 'Fold', limp: 'Limp', open: 'Open', call_open: 'Call Open',
   '3bet': '3-Bet', call_3bet: 'Call 3B', '4bet_plus': '4-Bet+',
   fold_to_3bet: 'Fold 3B', fold_to_4bet_plus: 'Fold 4B+', fold_to_raise: 'Fold Raise', fold_to_allin: 'Fold All-in',
-  cbet: 'C-Bet', fold_to_cbet: 'Fold C-Bet', no_cbet: 'Check', none: '—',
+  limp_fold: 'Limp-Fold',
+  cbet: 'C-Bet', fold_to_cbet: 'Fold C-Bet', no_cbet: 'Check', none: '—', call_cbet: 'Call C-Bet',
 };
 
 export function getPositions(playerCount: number): PokerPosition[] {
@@ -64,8 +65,5 @@ export function getPositions(playerCount: number): PokerPosition[] {
 
 export function advancePosition(currentIndex: number, playerCount: number): number {
   const positions = getPositions(playerCount);
-  const bbIndex = positions.length - 1;
-  const sbIndex = positions.length - 2;
-  if (currentIndex === sbIndex) return bbIndex;
   return (currentIndex + 1) % positions.length;
 }
