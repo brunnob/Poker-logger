@@ -4,13 +4,16 @@ Logger objetivo de mãos de poker para uso ao vivo na mesa. Registra cartas, pos
 
 ## Funcionalidades
 
-- **Logger sequencial** com auto-scroll entre etapas (jogadores → posição → cartas → ação pré-flop → ação flop → resultado)
-- **Auto-save em fold pré-flop** (sem clique extra)
-- **Estatísticas corretas** em tempo real, com escopo configurável (tudo / últimas 20 / últimas 10)
+- **Logger sequencial** com auto-scroll entre etapas (jogadores → posição → cartas → ação pré-flop → ação flop → notas → resultado)
+- **Auto-save em fold pré-flop, fold ao C-Bet e ao tocar no resultado** — nenhuma etapa terminal exige clique extra em "Salvar"
+- **Ações pré-flop e flop completas**, incluindo Limp-Fold e Call C-Bet (cobre a linha de quem paga o c-bet, antes inexistente)
+- **Estatísticas corretas** em tempo real — VPIP, PFR, 3-Bet%, Fold 3B, Fold PF, ATS, C-Bet%, Fold vs C-Bet, WTSD, W$SD, Viu Flop, Win Rate — com filtro por stack (Tudo / Só SS / Sem SS) e por janela (tudo / últimas 20 / últimas 10)
 - **Histórico denso** com barras de cor (win/loss) e botão de apagar
-- **Exportar** histórico para clipboard (formato texto legível)
-- **Importar** texto livre ou texto exportado, com preview e validação linha por linha
-- **Persistência local** via `localStorage` (sobrevive entre sessões do navegador)
+- **Exportar** histórico para clipboard (tokens de máquina, mão mais antiga primeiro, com cabeçalho Data/Total/Jogadores)
+- **Importar** texto livre, exportado pelo próprio app (formato atual ou antigo) ou colado manualmente, com preview e validação linha por linha
+- **Painéis por posição** (VPIP e Win Rate) seguem o layout real da mesa (UTG → BB), incluindo MP
+- **Mapa de 169 ranges** gerado por simulação Monte Carlo determinística (`scripts/gen-hand-rankings.mjs`)
+- **Persistência local** via `localStorage`, com validação e descarte de dados corrompidos ou de esquema antigo ao carregar
 - **Undo da última mão** com 1 clique
 - **Reset da sessão** com confirmação
 
@@ -36,7 +39,7 @@ Abra `http://localhost:3000`.
 npm run build
 ```
 
-Saída em `dist/`.
+Roda `tsc --noEmit` antes do `vite build` — erro de tipo interrompe o build (e portanto o deploy na Vercel). Saída em `dist/`.
 
 ## Deploy na Vercel
 
@@ -49,7 +52,22 @@ A partir daí, todo `git push` na branch principal faz deploy automático.
 
 ## Formato de import
 
-Aceita uma mão por linha. Ordem dos elementos não importa. Exemplos:
+O **Exportar** copia o histórico para a área de transferência no formato canônico: tokens de máquina (não os rótulos exibidos na tela), da mão mais antiga para a mais nova (`#1` = mais antiga), com um cabeçalho `Data:` / `Total:` / `Jogadores:`. Exemplo:
+
+```
+=== POKER HAND LOGGER ===
+Data: 23/07/2026, 14:30:00
+Total: 2 mãos
+Jogadores: 6
+
+#1 14:28:10 | AKs CO | open → cbet | ns_win
+#2 14:29:40 | QQ BTN | 3bet → cbet | sd_win
+```
+
+A linha `Jogadores: N` restaura o tamanho de mesa da sessão exportada ao importar. O **Importar** aceita esse formato de volta e também:
+
+- **Exports antigos**: rótulos por extenso (`Call Open`, `SD WIN`, `Fold 3B`...) e numeração decrescente (mão mais nova primeiro no arquivo) são detectados e normalizados automaticamente.
+- **Texto livre**, uma mão por linha, ordem dos elementos não importa:
 
 ```
 AKs CO open cbet ns_win
@@ -58,4 +76,4 @@ QQ BTN 3bet cbet sd_win
 JTs BB call_open no_cbet ns_loss
 ```
 
-Aliases curtos suportados: `3b`, `4b+`, `cb`, `sdw`, `nsl`, `won`, `lost`, etc. Linhas começando com `===`, `---`, `Data:`, `Total`, `Jogadores` são ignoradas (compatível com headers do export).
+Aliases curtos suportados: `3b`, `4b+`, `cb`, `sdw`, `nsl`, `won`, `lost`, etc. Linhas começando com `===`, `---`, `Data:`, `Total`, `Jogadores` são ignoradas (compatível com headers do export, atuais e antigos).
