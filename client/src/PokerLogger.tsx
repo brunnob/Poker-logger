@@ -5,6 +5,7 @@ import { getHandRange, TOTAL_COMBOS, BUCKET_WEIGHTS, formatExpected, handNotatio
 import { isFoldPreflop, calculateStats } from './lib/stats';
 import { ParseResult, parseImport } from './lib/parser';
 import { buildExportText } from './lib/export';
+import { loadSession, serializeSession } from './lib/storage';
 
 // ============================================================
 // MAIN APP
@@ -20,7 +21,7 @@ export default function PokerLogger() {
   const [card2, setCard2] = useState<CardRank | null>(null);
   const [handType, setHandType] = useState<HandType | null>(null);
   const [preFlopAction, setPreFlopAction] = useState<PreFlopAction | null>(null);
-  const [flopAction, setFlopAction] = useState<FlopAction>('none');
+  const [flopAction, setFlopAction] = useState<FlopAction | null>(null);
   const [result, setResult] = useState<HandResult | null>(null);
   const [notes, setNotes] = useState('');
   const [toast, setToast] = useState<string | null>(null);
@@ -28,13 +29,13 @@ export default function PokerLogger() {
   const [smallStackMode, setSmallStackMode] = useState(false);
 
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const lastSaveRef = useRef(0);
 
   // Load from localStorage
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setSession(JSON.parse(stored));
-    } catch {}
+    let stored: string | null = null;
+    try { stored = localStorage.getItem(STORAGE_KEY); } catch {}
+    setSession(loadSession(stored));
     setLoaded(true);
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -43,7 +44,7 @@ export default function PokerLogger() {
   // Save to localStorage
   useEffect(() => {
     if (!loaded) return;
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(session)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, serializeSession(session)); } catch {}
   }, [session, loaded]);
 
   useEffect(() => {
@@ -69,25 +70,28 @@ export default function PokerLogger() {
 
   const resetForm = () => {
     setCard1(null); setCard2(null); setHandType(null);
-    setPreFlopAction(null); setFlopAction('none'); setResult(null);
+    setPreFlopAction(null); setFlopAction(null); setResult(null);
     setNotes('');
   };
 
   const saveHand = (overrideResult?: HandResult, overrideAction?: PreFlopAction, overrideFlopAction?: FlopAction) => {
     const finalAction = overrideAction || preFlopAction;
     const finalResult = overrideResult || result;
-    const finalFlopAction = overrideFlopAction || flopAction;
+    const finalFlopAction = overrideFlopAction || flopAction || 'none';
     if (!card1 || !card2 || !handType || !finalAction || !finalResult) return;
+
+    const now = Date.now();
+    if (now - lastSaveRef.current < 300) return; // M1: guard against double-tap duplicate saves
+    lastSaveRef.current = now;
 
     const trimmedNotes = notes.trim();
     const newHand: Hand = {
       id: Math.random().toString(36).slice(2, 11),
-      timestamp: Date.now(),
+      timestamp: now,
       position: currentPos, card1, card2, handType,
       preFlopAction: finalAction,
       flopAction: isFoldPreflop(finalAction) ? 'none' : finalFlopAction,
       result: finalResult,
-      range: getHandRange(card1, card2, handType),
       playerCount: session.playerCount,
       smallStackMode,
       ...(trimmedNotes && { notes: trimmedNotes }),
@@ -106,9 +110,7 @@ export default function PokerLogger() {
   const handlePreFlopAction = (action: PreFlopAction) => {
     setPreFlopAction(action);
     if (isFoldPreflop(action)) {
-      setTimeout(() => {
-        if (card1 && card2 && handType) saveHand('ns_loss', action);
-      }, 30);
+      saveHand('ns_loss', action);
     } else {
       scrollTo('flop');
     }
@@ -117,23 +119,29 @@ export default function PokerLogger() {
   const handleFlopAction = (action: FlopAction) => {
     setFlopAction(action);
     if (action === 'fold_to_cbet') {
-      setTimeout(() => {
-        if (card1 && card2 && handType && preFlopAction) saveHand('ns_loss', undefined, action);
-      }, 30);
+      saveHand('ns_loss', undefined, action);
     } else {
       scrollTo('result');
     }
   };
 
+  const handleResult = (r: HandResult) => {
+    setResult(r);
+    saveHand(r);
+  };
+
   const undoLast = () => {
     if (session.hands.length === 0) return;
-    setSession(prev => ({
-      ...prev,
-      hands: prev.hands.slice(1),
-      currentPositionIndex: prev.currentPositionIndex === 0
-        ? getPositions(prev.playerCount).length - 1
-        : prev.currentPositionIndex - 1,
-    }));
+    setSession(prev => {
+      const removed = prev.hands[0];
+      // M4: imported hands never advanced the dealer position, so undoing one must not rewind it.
+      const currentPositionIndex = removed.fromImport
+        ? prev.currentPositionIndex
+        : prev.currentPositionIndex === 0
+          ? getPositions(prev.playerCount).length - 1
+          : prev.currentPositionIndex - 1;
+      return { ...prev, hands: prev.hands.slice(1), currentPositionIndex };
+    });
     showToast('Última mão desfeita');
   };
 
@@ -150,7 +158,17 @@ export default function PokerLogger() {
   };
 
   const setPlayerCount = (n: number) => {
-    setSession(prev => ({ ...prev, playerCount: n, currentPositionIndex: Math.min(prev.currentPositionIndex, n - 1) }));
+    setSession(prev => {
+      // M6: preserve the same seat by position label (e.g. HJ stays HJ) when the
+      // new layout still has it; only fall back to a clamped index otherwise.
+      const currentLabel = getPositions(prev.playerCount)[prev.currentPositionIndex];
+      const newPositions = getPositions(n);
+      const preservedIndex = newPositions.indexOf(currentLabel);
+      const currentPositionIndex = preservedIndex >= 0
+        ? preservedIndex
+        : Math.min(Math.max(prev.currentPositionIndex, 0), newPositions.length - 1);
+      return { ...prev, playerCount: n, currentPositionIndex };
+    });
   };
 
   const setPositionIndex = (i: number) => {
@@ -165,11 +183,15 @@ export default function PokerLogger() {
   };
 
   const importHands = (parsedHands: Omit<Hand, 'id' | 'timestamp'>[], mode: 'replace' | 'append') => {
+    // parseImport returns hands oldest-first with playerCount already set per-hand (M5) —
+    // do not override it here. Assign ascending timestamps in that same oldest-first order
+    // to preserve true chronology, then reverse so state stays newest-first (C5).
     const baseTime = Date.now();
     const newHands: Hand[] = parsedHands.map((h, i) => ({
-      ...h, playerCount: session.playerCount,
+      ...h,
+      fromImport: true,
       id: Math.random().toString(36).slice(2, 11),
-      timestamp: baseTime - (parsedHands.length - i) * 1000,
+      timestamp: baseTime - (parsedHands.length - 1 - i) * 1000,
     }));
     newHands.reverse();
     setSession(prev => ({
@@ -180,7 +202,6 @@ export default function PokerLogger() {
     setTab('stats');
   };
 
-  const canSave = card1 && card2 && handType && preFlopAction && result !== null;
   const isFoldPreFlop = preFlopAction && isFoldPreflop(preFlopAction);
 
   if (!loaded) return <div className="p-8 font-mono text-sm text-stone-500">Carregando…</div>;
@@ -188,7 +209,6 @@ export default function PokerLogger() {
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900" style={{ fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
         .mono { font-family: 'IBM Plex Mono', monospace; }
         .num { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
       `}</style>
@@ -344,6 +364,7 @@ export default function PokerLogger() {
                     {([
                       ['fold', 'Fold'], ['fold_to_raise', 'Fold ao Raise'],
                       ['fold_to_allin', 'Fold p/ All-in'], ['limp', 'Limp'],
+                      ['limp_fold', 'Limp-Fold'],
                       ['open', 'Open'], ['call_open', 'Call Open'],
                       ['3bet', '3-Bet'], ['call_3bet', 'Call 3-Bet'],
                       ['4bet_plus', '4-Bet+'],
@@ -357,7 +378,7 @@ export default function PokerLogger() {
                         }`}>{label}</button>
                     ))}
                   </div>
-                  <p className="mono text-[10px] text-stone-500 mt-3 tracking-wider uppercase">Folds salvam automaticamente</p>
+                  <p className="mono text-[10px] text-stone-500 mt-3 tracking-wider uppercase">Folds salvam automaticamente · Abriu e levou shove? Marque Fold ao 3-Bet</p>
                 </Section>
               </div>
             )}
@@ -367,9 +388,10 @@ export default function PokerLogger() {
                 <Section title="Ação no flop" step="05" optional>
                   <div className="grid grid-cols-2 gap-1">
                     {([
-                      ['none', 'Não foi ao flop'],
+                      ['none', 'Não vi o flop'],
                       ['cbet', 'C-Bet'],
                       ['no_cbet', 'Check (sem C-Bet)'],
+                      ['call_cbet', 'Call C-Bet'],
                       ['fold_to_cbet', 'Fold ao C-Bet'],
                     ] as [FlopAction, string][]).map(([action, label]) => (
                       <button key={action} onClick={() => handleFlopAction(action)}
@@ -386,21 +408,7 @@ export default function PokerLogger() {
             )}
 
             {preFlopAction && !isFoldPreFlop && (
-              <div ref={el => { sectionRefs.current['result'] = el; }} className="scroll-mt-20">
-                <Section title="Resultado" step="06">
-                  <div className="grid grid-cols-2 gap-1">
-                    <ResultBtn label="SD Win" variant="sd-win" selected={result === 'sd_win'} onClick={() => setResult('sd_win')} />
-                    <ResultBtn label="SD Loss" variant="sd-loss" selected={result === 'sd_loss'} onClick={() => setResult('sd_loss')} />
-                    <ResultBtn label="NS Win" variant="ns-win" selected={result === 'ns_win'} onClick={() => setResult('ns_win')} />
-                    <ResultBtn label="NS Loss" variant="ns-loss" selected={result === 'ns_loss'} onClick={() => setResult('ns_loss')} />
-                  </div>
-                  <p className="mono text-[10px] text-stone-500 mt-3 tracking-wider uppercase">SD = foi a showdown · NS = ganhou/perdeu sem mostrar</p>
-                </Section>
-              </div>
-            )}
-
-            {card1 && card2 && handType && (
-              <Section title="Notas" step="07" optional>
+              <Section title="Notas" step="06" optional>
                 <textarea
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
@@ -410,24 +418,37 @@ export default function PokerLogger() {
                 />
               </Section>
             )}
+
+            {preFlopAction && !isFoldPreFlop && (
+              <div ref={el => { sectionRefs.current['result'] = el; }} className="scroll-mt-20">
+                <Section title="Resultado" step="07">
+                  <div className="grid grid-cols-2 gap-1">
+                    <ResultBtn label="SD Win" variant="sd-win" selected={result === 'sd_win'} onClick={() => handleResult('sd_win')} />
+                    <ResultBtn label="SD Loss" variant="sd-loss" selected={result === 'sd_loss'} onClick={() => handleResult('sd_loss')} />
+                    <ResultBtn label="NS Win" variant="ns-win" selected={result === 'ns_win'} onClick={() => handleResult('ns_win')} />
+                    <ResultBtn label="NS Loss" variant="ns-loss" selected={result === 'ns_loss'} onClick={() => handleResult('ns_loss')} />
+                  </div>
+                  <p className="mono text-[10px] text-stone-500 mt-3 tracking-wider uppercase">SD = foi a showdown · NS = ganhou/perdeu sem mostrar</p>
+                </Section>
+              </div>
+            )}
           </div>
         )}
 
-        {tab === 'stats' && <StatsView stats={stats} hands={session.hands} />}
+        {tab === 'stats' && <StatsView stats={stats} hands={session.hands} playerCount={session.playerCount} />}
         {tab === 'history' && (
-          <HistoryView hands={session.hands} existingCount={session.hands.length}
+          <HistoryView hands={session.hands} existingCount={session.hands.length} playerCount={session.playerCount}
             onDelete={deleteHand} onImport={importHands} onToast={showToast}
             onUpdateNote={updateHandNote} />
         )}
       </main>
 
-      {tab === 'logger' && canSave && (
+      {tab === 'logger' && card1 !== null && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-stone-50 border-t-2 border-stone-900">
-          <div className="max-w-2xl mx-auto px-4 py-3 flex gap-2">
+          <div className="max-w-2xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
             <button onClick={resetForm}
-              className="px-5 py-3 border border-stone-300 mono text-xs font-bold uppercase tracking-wider hover:bg-stone-100">Limpar</button>
-            <button onClick={() => saveHand()}
-              className="flex-1 py-3 bg-stone-900 text-stone-50 mono text-xs font-bold uppercase tracking-wider hover:bg-stone-800">Salvar mão →</button>
+              className="px-4 py-2 border border-stone-300 mono text-xs font-bold uppercase tracking-wider hover:bg-stone-100">Limpar</button>
+            <span className="mono text-[10px] font-bold uppercase tracking-wider text-stone-400 text-right">Resultado salva automaticamente</span>
           </div>
         </div>
       )}
@@ -485,18 +506,32 @@ function ResultBtn({ label, variant, selected, onClick }: { label: string; varia
 }
 
 // ============================================================
+// POSITION ROW HELPER (shared by PositionWinRate + VpipByPosition)
+// ============================================================
+// C2: rows are the current table's positions (UTG first, BB last, matching
+// live seating order) instead of a hardcoded 9-max list that silently
+// dropped MP. Any position present in the data but absent from the current
+// layout (e.g. MP hands viewed while at a 9-max table) is appended at the end
+// so historical hands never become invisible when the table size changes.
+function getPositionRows(playerCount: number, dataKeys: string[]): PokerPosition[] {
+  const layout = [...getPositions(playerCount)].reverse();
+  const extra = dataKeys.filter(k => !layout.includes(k as PokerPosition)) as PokerPosition[];
+  return [...layout, ...extra];
+}
+
+// ============================================================
 // POSITION WIN RATE HELPER
 // ============================================================
-function PositionWinRate({ byPos }: { byPos: Record<string, { hands: number; wins: number }> }) {
-  const allPositions: PokerPosition[] = ['BB', 'SB', 'BTN', 'CO', 'HJ', 'LJ', 'UTG+2', 'UTG+1', 'UTG'];
-  
+function PositionWinRate({ byPos, playerCount }: { byPos: Record<string, { hands: number; wins: number }>; playerCount: number }) {
+  const rows = getPositionRows(playerCount, Object.keys(byPos));
+
   return (
     <div className="border border-stone-300">
-      {allPositions.map((pos, idx) => {
+      {rows.map((pos, idx) => {
         const d = byPos[pos] || { hands: 0, wins: 0 };
         const winRate = d.hands > 0 ? ((d.wins / d.hands) * 100).toFixed(0) : '0';
         return (
-          <div key={pos} className={`flex items-center ${idx !== allPositions.length - 1 ? 'border-b border-stone-200' : ''} px-3 py-2`}>
+          <div key={pos} className={`flex items-center ${idx !== rows.length - 1 ? 'border-b border-stone-200' : ''} px-3 py-2`}>
             <span className="mono text-xs font-bold w-12">{pos}</span>
             <span className="num text-xs text-stone-500 w-12">{d.hands}m</span>
             <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${d.hands > 0 ? (d.wins / d.hands) * 100 : 0}%` }} /></div>
@@ -511,16 +546,16 @@ function PositionWinRate({ byPos }: { byPos: Record<string, { hands: number; win
 // ============================================================
 // VPIP BY POSITION HELPER
 // ============================================================
-function VpipByPosition({ byPosVpip }: { byPosVpip: Record<string, { total: number; voluntary: number }> }) {
-  const allPositions: PokerPosition[] = ['BB', 'SB', 'BTN', 'CO', 'HJ', 'LJ', 'UTG+2', 'UTG+1', 'UTG'];
-  
+function VpipByPosition({ byPosVpip, playerCount }: { byPosVpip: Record<string, { total: number; voluntary: number }>; playerCount: number }) {
+  const rows = getPositionRows(playerCount, Object.keys(byPosVpip));
+
   return (
     <div className="border border-stone-300">
-      {allPositions.map((pos, idx) => {
+      {rows.map((pos, idx) => {
         const d = byPosVpip[pos] || { total: 0, voluntary: 0 };
         const vpip = d.total > 0 ? ((d.voluntary / d.total) * 100).toFixed(1) : '0.0';
         return (
-          <div key={pos} className={`flex items-center ${idx !== allPositions.length - 1 ? 'border-b border-stone-200' : ''} px-3 py-2`}>
+          <div key={pos} className={`flex items-center ${idx !== rows.length - 1 ? 'border-b border-stone-200' : ''} px-3 py-2`}>
             <span className="mono text-xs font-bold w-12">{pos}</span>
             <span className="num text-xs text-stone-500 w-12">{d.total}m</span>
             <div className="flex-1 h-1.5 bg-stone-100 mx-3"><div className="h-full bg-stone-900" style={{ width: `${d.total > 0 ? (d.voluntary / d.total) * 100 : 0}%` }} /></div>
@@ -613,17 +648,26 @@ function RangeDistribution({ byRange, total, hands }: { byRange: Record<string, 
 // ============================================================
 // STATS VIEW
 // ============================================================
-function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>; hands: Hand[] }) {
+function StatsView({ stats, hands, playerCount }: { stats: ReturnType<typeof calculateStats>; hands: Hand[]; playerCount: number }) {
+  const [stackScope, setStackScope] = useState<'all' | 'ss' | 'nonss'>('all');
   const [scope, setScope] = useState<'all' | 'last10' | 'last20'>('all');
-  const scopedHands = useMemo(() => {
-    if (scope === 'last10') return hands.slice(0, 10);
-    if (scope === 'last20') return hands.slice(0, 20);
+
+  // H7: stack-mode filter is applied first, then the recency slice runs on
+  // top of it, so "Últ. 10/20" means the last N hands matching the stack filter.
+  const stackFilteredHands = useMemo(() => {
+    if (stackScope === 'ss') return hands.filter(h => h.smallStackMode);
+    if (stackScope === 'nonss') return hands.filter(h => !h.smallStackMode);
     return hands;
-  }, [scope, hands]);
+  }, [stackScope, hands]);
+  const scopedHands = useMemo(() => {
+    if (scope === 'last10') return stackFilteredHands.slice(0, 10);
+    if (scope === 'last20') return stackFilteredHands.slice(0, 20);
+    return stackFilteredHands;
+  }, [scope, stackFilteredHands]);
   const scoped = useMemo(() => {
-    if (scope === 'all') return stats;
+    if (scope === 'all' && stackScope === 'all') return stats;
     return calculateStats(scopedHands);
-  }, [scope, scopedHands, stats]);
+  }, [scope, stackScope, scopedHands, stats]);
 
   if (hands.length === 0) {
     return <div className="text-center py-20 mono text-xs uppercase tracking-widest text-stone-400">Nenhuma mão registrada</div>;
@@ -631,6 +675,18 @@ function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>;
 
   return (
     <div className="space-y-8">
+      <div>
+        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">Stack</h3>
+        <div className="grid grid-cols-3 gap-1">
+          {([['all', 'Tudo'], ['ss', 'Só SS'], ['nonss', 'Sem SS']] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setStackScope(k)}
+              className={`mono h-9 text-[10px] font-bold uppercase tracking-widest border transition-colors ${
+                stackScope === k ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-stone-50 border-stone-300 hover:border-stone-900'
+              }`}>{l}</button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-3 gap-1">
         {([['all', 'Tudo'], ['last20', 'Últ. 20'], ['last10', 'Últ. 10']] as const).map(([k, l]) => (
           <button key={k} onClick={() => setScope(k)}
@@ -640,47 +696,57 @@ function StatsView({ stats, hands }: { stats: ReturnType<typeof calculateStats>;
         ))}
       </div>
 
-      <Stat label="Total / Voluntárias" value={`${scoped.total} / ${scoped.voluntary}`} hint="mãos jogadas" />
+      {scopedHands.length === 0 ? (
+        <div className="text-center py-20 mono text-xs uppercase tracking-widest text-stone-400">Nenhuma mão no filtro</div>
+      ) : (
+        <>
+          <Stat label="Total / Voluntárias" value={`${scoped.total} / ${scoped.voluntary}`} hint="mãos jogadas" />
 
-      <div>
-        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Pré-Flop</h3>
-        <div className="grid grid-cols-2 gap-px bg-stone-300 border border-stone-300">
-          <Metric label="VPIP" value={scoped.vpip} />
-          <Metric label="PFR" value={scoped.pfr} />
-          <Metric label="3-Bet" value={scoped.threeBet} />
-          <Metric label="ATS" value={scoped.ats} accent />
-        </div>
-      </div>
+          <div>
+            <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Pré-Flop</h3>
+            <div className="grid grid-cols-2 gap-px bg-stone-300 border border-stone-300">
+              <Metric label="VPIP" value={scoped.vpip} />
+              <Metric label="PFR" value={scoped.pfr} />
+              <Metric label="3-Bet" value={scoped.threeBet} />
+              <Metric label="Fold 3B" value={scoped.foldTo3Bet} />
+              <Metric label="ATS" value={scoped.ats} />
+              <Metric label="Fold PF" value={scoped.foldPf} />
+            </div>
+          </div>
 
-      <div>
-        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Pós-Flop</h3>
-        <div className="grid grid-cols-2 gap-px bg-stone-300 border border-stone-300">
-          <Metric label="C-Bet" value={scoped.cBet} />
-          <Metric label="WTSD" value={scoped.wtsd} />
-          <Metric label="W$SD" value={scoped.wsd} />
-          <Metric label="Win Rate" value={scoped.winRate} accent />
-        </div>
-      </div>
+          <div>
+            <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Pós-Flop</h3>
+            <div className="grid grid-cols-2 gap-px bg-stone-300 border border-stone-300">
+              <Metric label="C-Bet" value={scoped.cBet} />
+              <Metric label="Fold vs C-Bet" value={scoped.foldVsCbet} />
+              <Metric label="WTSD" value={scoped.wtsd} />
+              <Metric label="W$SD" value={scoped.wsd} />
+              <Metric label="Viu Flop" value={scoped.flopSeen} />
+              <Metric label="Win Rate" value={scoped.winRate} accent />
+            </div>
+          </div>
 
-      <div>
-        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Distribuição de Ranges</h3>
-        <RangeDistribution byRange={scoped.byRange} total={scoped.total} hands={scopedHands} />
-      </div>
+          <div>
+            <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Distribuição de Ranges</h3>
+            <RangeDistribution byRange={scoped.byRange} total={scoped.total} hands={scopedHands} />
+          </div>
 
-      <div>
-        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Resultados</h3>
-        <ResultBars results={scoped.results} total={scoped.total} foldPf={scoped.foldPf} />
-      </div>
+          <div>
+            <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Resultados</h3>
+            <ResultBars results={scoped.results} total={scoped.total} foldPf={scoped.foldPf} />
+          </div>
 
-      <div>
-        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">VPIP por Posição</h3>
-        <VpipByPosition byPosVpip={scoped.byPosVpip} />
-      </div>
+          <div>
+            <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">VPIP por Posição</h3>
+            <VpipByPosition byPosVpip={scoped.byPosVpip} playerCount={playerCount} />
+          </div>
 
-      <div>
-        <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Win Rate por Posição</h3>
-        <PositionWinRate byPos={scoped.byPos} />
-      </div>
+          <div>
+            <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Win Rate por Posição</h3>
+            <PositionWinRate byPos={scoped.byPos} playerCount={playerCount} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -730,8 +796,8 @@ function ResultBars({ results, total, foldPf }: { results: { sdWin: number; sdLo
 // ============================================================
 // HISTORY + IMPORT
 // ============================================================
-function HistoryView({ hands, existingCount, onDelete, onImport, onToast, onUpdateNote }: {
-  hands: Hand[]; existingCount: number;
+function HistoryView({ hands, existingCount, playerCount, onDelete, onImport, onToast, onUpdateNote }: {
+  hands: Hand[]; existingCount: number; playerCount: number;
   onDelete: (id: string) => void;
   onImport: (hands: Omit<Hand, 'id' | 'timestamp'>[], mode: 'replace' | 'append') => void;
   onToast: (msg: string) => void;
@@ -743,7 +809,7 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast, onUpda
 
   const exportText = async () => {
     if (hands.length === 0) return;
-    const txt = buildExportText(hands);
+    const txt = buildExportText(hands, playerCount);
     try {
       await navigator.clipboard.writeText(txt);
       setExportState('copied');
@@ -777,7 +843,7 @@ function HistoryView({ hands, existingCount, onDelete, onImport, onToast, onUpda
 
       {showImport && (
         <div className="border border-stone-300 bg-white p-4">
-          <ImportView existingCount={existingCount}
+          <ImportView existingCount={existingCount} playerCount={playerCount}
             onImport={(parsedHands, mode) => { onImport(parsedHands, mode); setShowImport(false); }} />
         </div>
       )}
@@ -877,12 +943,12 @@ function NoteModal({ hand, onSave, onClose }: {
   );
 }
 
-function ImportView({ existingCount, onImport }: { existingCount: number; onImport: (hands: Omit<Hand, 'id' | 'timestamp'>[], mode: 'replace' | 'append') => void }) {
+function ImportView({ existingCount, playerCount, onImport }: { existingCount: number; playerCount: number; onImport: (hands: Omit<Hand, 'id' | 'timestamp'>[], mode: 'replace' | 'append') => void }) {
   const [text, setText] = useState('');
   const [preview, setPreview] = useState<ParseResult | null>(null);
   const [confirming, setConfirming] = useState(false);
 
-  const handleParse = () => setPreview(parseImport(text));
+  const handleParse = () => setPreview(parseImport(text, playerCount));
   const handleConfirm = (mode: 'replace' | 'append') => {
     if (!preview || preview.hands.length === 0) return;
     onImport(preview.hands, mode);
