@@ -298,14 +298,16 @@ export default function PokerLogger() {
             </div>
 
             <Section title="Jogadores na mesa" step="01">
+              {/* "Nmax" labels + recessed tint so these can't be mistaken for
+                  the white rank tiles of step 03 (both grids are numeric) */}
               <div className="grid grid-cols-8 gap-1">
                 {[2, 3, 4, 5, 6, 7, 8, 9].map(n => (
                   <button key={n} onClick={() => { setPlayerCount(n); scrollTo('position'); }}
-                    className={`num h-10 text-sm font-bold border transition-colors ${
+                    className={`mono h-9 text-[11px] font-bold tracking-wide border transition-colors ${
                       session.playerCount === n
                         ? 'bg-stone-900 text-stone-50 border-stone-900'
-                        : 'bg-stone-50 border-stone-300 hover:border-stone-900'
-                    }`}>{n}</button>
+                        : 'bg-stone-100 text-stone-600 border-stone-300 hover:border-stone-900'
+                    }`}>{n}max</button>
                 ))}
               </div>
             </Section>
@@ -457,7 +459,15 @@ export default function PokerLogger() {
           <div className="max-w-2xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
             <button onClick={resetForm}
               className="px-4 py-2 border border-stone-300 mono text-xs font-bold uppercase tracking-wider hover:bg-stone-100">Limpar</button>
-            <span className="mono text-[10px] font-bold uppercase tracking-wider text-stone-400 text-right">Resultado salva automaticamente</span>
+            {card1 && card2 && handType && !preFlopAction ? (
+              // Quick-fold shortcut for the hot path (cards -> fold): same as
+              // the Fold button in step 04. Hidden once a preflop action is
+              // chosen, so it can't retroactively rewrite a played hand.
+              <button onClick={() => handlePreFlopAction('fold')}
+                className="flex-1 py-2.5 bg-stone-900 text-stone-50 mono text-xs font-bold uppercase tracking-wider hover:bg-stone-800">Fold</button>
+            ) : (
+              <span className="mono text-[10px] font-bold uppercase tracking-wider text-stone-400 text-right">Resultado salva automaticamente</span>
+            )}
           </div>
         </div>
       )}
@@ -490,7 +500,7 @@ function CardGrid({ label, rank, selected, onSelect }: { label: string; rank: Ca
         {rank.map(r => (
           <button key={r} onClick={() => onSelect(r)}
             className={`num h-10 text-base font-bold border transition-colors ${
-              selected === r ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-stone-50 border-stone-300 hover:border-stone-900'
+              selected === r ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-white border-stone-300 hover:border-stone-900'
             }`}>{r}</button>
         ))}
       </div>
