@@ -74,6 +74,10 @@ export default function PokerLogger() {
     setNotes('');
   };
 
+  // M1: a rejected duplicate tap must not mutate form state either, or the
+  // stale selection bleeds into the next hand's form (SAVE-GUARD-DESYNC-1)
+  const isSaveThrottled = () => Date.now() - lastSaveRef.current < 300;
+
   const saveHand = (overrideResult?: HandResult, overrideAction?: PreFlopAction, overrideFlopAction?: FlopAction) => {
     const finalAction = overrideAction || preFlopAction;
     const finalResult = overrideResult || result;
@@ -81,7 +85,7 @@ export default function PokerLogger() {
     if (!card1 || !card2 || !handType || !finalAction || !finalResult) return;
 
     const now = Date.now();
-    if (now - lastSaveRef.current < 300) return; // M1: guard against double-tap duplicate saves
+    if (isSaveThrottled()) return;
     lastSaveRef.current = now;
 
     const trimmedNotes = notes.trim();
@@ -108,24 +112,29 @@ export default function PokerLogger() {
   };
 
   const handlePreFlopAction = (action: PreFlopAction) => {
-    setPreFlopAction(action);
     if (isFoldPreflop(action)) {
+      if (isSaveThrottled()) return;
+      setPreFlopAction(action);
       saveHand('ns_loss', action);
     } else {
+      setPreFlopAction(action);
       scrollTo('flop');
     }
   };
 
   const handleFlopAction = (action: FlopAction) => {
-    setFlopAction(action);
     if (action === 'fold_to_cbet') {
+      if (isSaveThrottled()) return;
+      setFlopAction(action);
       saveHand('ns_loss', undefined, action);
     } else {
+      setFlopAction(action);
       scrollTo('result');
     }
   };
 
   const handleResult = (r: HandResult) => {
+    if (isSaveThrottled()) return;
     setResult(r);
     saveHand(r);
   };
