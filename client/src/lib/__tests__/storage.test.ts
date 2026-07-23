@@ -169,3 +169,20 @@ describe('serializeSession + loadSession round-trip', () => {
     expect(second).toEqual(first);
   });
 });
+
+describe('AUD-2 - cross-field poker invariant on load', () => {
+  it('coerces a fold-type hand carrying a flop action and showdown result back to none/ns_loss', () => {
+    const blob = JSON.stringify({
+      playerCount: 6,
+      currentPositionIndex: 0,
+      hands: [{
+        id: 'x', timestamp: 1, position: 'UTG', card1: 'A', card2: 'K', handType: 'offsuit',
+        preFlopAction: 'fold', flopAction: 'cbet', result: 'sd_win', playerCount: 6, smallStackMode: false,
+      }],
+    });
+    const session = loadSession(blob);
+    expect(session.hands).toHaveLength(1);
+    expect(session.hands[0].flopAction).toBe('none');
+    expect(session.hands[0].result).toBe('ns_loss');
+  });
+});

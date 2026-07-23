@@ -51,15 +51,21 @@ export function calculateStats(hands: Hand[]) {
       if (STEAL_ATTEMPT_ACTIONS.includes(h.preFlopAction)) steals++;
     }
     const wasAggressor = ['open', '3bet', '4bet_plus'].includes(h.preFlopAction);
-    // A showdown always means the board was seen, even on a preflop all-in with no flop action recorded.
-    const sawShowdown = h.result === 'sd_win' || h.result === 'sd_loss';
-    const sawFlopThisHand = h.flopAction !== 'none' || sawShowdown;
+    // A hand folded preflop can never see a flop or reach showdown, whatever a
+    // corrupted record claims. Otherwise, a showdown always means the board was
+    // seen, even on a preflop all-in with no flop action recorded.
+    const foldedPreflop = isFoldPreflop(h.preFlopAction);
+    const sawShowdown = !foldedPreflop && (h.result === 'sd_win' || h.result === 'sd_loss');
+    const sawFlopThisHand = !foldedPreflop && (h.flopAction !== 'none' || sawShowdown);
     if (wasAggressor && sawFlopThisHand) {
       if (h.flopAction === 'cbet') cBetMade++;
       else if (h.flopAction === 'no_cbet') cBetMissed++;
     }
-    if (h.flopAction === 'fold_to_cbet') foldToCbetCount++;
-    else if (h.flopAction === 'call_cbet') callCbetCount++;
+    // Fold vs C-Bet describes calling-range behavior: the preflop aggressor
+    // cannot face a c-bet (a donk-bet faced is not one), so aggressor hands
+    // stay out of both counters.
+    if (!wasAggressor && h.flopAction === 'fold_to_cbet') foldToCbetCount++;
+    else if (!wasAggressor && h.flopAction === 'call_cbet') callCbetCount++;
     if (sawFlopThisHand) sawFlop++;
     switch (h.result) {
       case 'sd_win': rc.sdWin++; break;

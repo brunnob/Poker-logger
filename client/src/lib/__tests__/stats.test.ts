@@ -219,3 +219,36 @@ describe('preserved behaviors', () => {
     expect(nonFinite).toEqual([]);
   });
 });
+
+describe('AUD-1 - foldVsCbet is caller-only', () => {
+  it('an aggressor folding to a donk-bet does not enter foldVsCbet', () => {
+    const hands: Hand[] = [
+      makeHand({ preFlopAction: 'open', flopAction: 'fold_to_cbet', result: 'ns_loss' }),
+    ];
+    const stats = calculateStats(hands);
+    expect(stats.foldVsCbet).toBe(0);
+    expect(stats.cBet).toBe(0);
+  });
+
+  it('caller-side fold_to_cbet/call_cbet still drive the stat', () => {
+    const hands: Hand[] = [
+      makeHand({ preFlopAction: 'call_open', flopAction: 'fold_to_cbet', result: 'ns_loss' }),
+      makeHand({ preFlopAction: 'call_open', flopAction: 'call_cbet', result: 'sd_loss' }),
+    ];
+    expect(calculateStats(hands).foldVsCbet).toBeCloseTo(50, 6);
+  });
+});
+
+describe('AUD-2 - fold-type hands can never see a flop or showdown', () => {
+  it('a corrupted fold hand carrying flopAction=cbet and result=sd_win stays out of sawFlop/WTSD/W$SD', () => {
+    const hands: Hand[] = [
+      makeHand({ preFlopAction: 'fold', flopAction: 'cbet', result: 'sd_win' }),
+    ];
+    const stats = calculateStats(hands);
+    expect(stats.sawFlop).toBe(0);
+    expect(stats.flopSeen).toBe(0);
+    expect(stats.wtsd).toBe(0);
+    expect(stats.wsd).toBe(0);
+    expect(stats.cBet).toBe(0);
+  });
+});

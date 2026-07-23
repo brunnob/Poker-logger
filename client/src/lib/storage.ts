@@ -2,6 +2,7 @@ import {
   Hand, SessionState, CardRank, HandType, PokerPosition, PreFlopAction, FlopAction, HandResult,
   CARD_RANKS, POSITIONS_BY_COUNT, getPositions,
 } from './types';
+import { isFoldPreflop } from './stats';
 
 // ============================================================
 // STORAGE (pure, unit-testable localStorage <-> SessionState bridge)
@@ -65,6 +66,12 @@ function normalizeHand(raw: unknown, fallbackPlayerCount: number): Hand | null {
   const notes = typeof h.notes === 'string' && h.notes.trim() ? h.notes.trim() : undefined;
   const fromImport = typeof h.fromImport === 'boolean' ? h.fromImport : undefined;
 
+  // Cross-field poker invariant: a hand folded preflop cannot see a flop or
+  // reach showdown. The save form and the import parser both enforce this at
+  // write time; coerce here too so a tampered blob can't skew WTSD/sawFlop.
+  const preFlopAction = h.preFlopAction as PreFlopAction;
+  const foldedPreflop = isFoldPreflop(preFlopAction);
+
   return {
     id,
     timestamp,
@@ -72,9 +79,9 @@ function normalizeHand(raw: unknown, fallbackPlayerCount: number): Hand | null {
     card1: h.card1 as CardRank,
     card2: h.card2 as CardRank,
     handType: h.handType as HandType,
-    preFlopAction: h.preFlopAction as PreFlopAction,
-    flopAction: h.flopAction as FlopAction,
-    result: h.result as HandResult,
+    preFlopAction,
+    flopAction: foldedPreflop ? 'none' : h.flopAction as FlopAction,
+    result: foldedPreflop ? 'ns_loss' : h.result as HandResult,
     playerCount,
     smallStackMode: Boolean(h.smallStackMode),
     ...(notes !== undefined && { notes }),
