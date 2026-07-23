@@ -261,3 +261,19 @@ Re-verified against the current code (`client/src/lib/{types,ranges,stats,parser
 ### Summary
 
 20/20 numbered findings (C1-C5, H1-H8, M1-M7) were re-verified against the code. 18 are Corrigido. Exactly two are Adiado — **M3** (13×13 matrix / offsuit-default input, a UX decision left to the user) and **H4** (full multi-action sequence taxonomy; `limp_fold` shipped as a partial mitigation, the `open`+`call_3bet` and `fold_to_allin` ambiguities remain by convention, not by fix) — plus one sub-item, the optional `fold_to_allin` extension to the C3 denominator, left out by design. Of the six Low/hygiene bullets, five are Corrigido; the offline-PWA half of L4 was not pursued.
+
+## Auditoria adversarial (2026-07-23, pós-implementação)
+
+Quatro auditores independentes verificaram a implementação: estatísticas (re-derivação fórmula a fórmula + fuzz de ~24k mãos), parser/round-trip (38.400 combinações exportar→importar + varredura exaustiva de colisões de bigramas), fluxo de UI (leitura adversarial linha a linha + gates de compilação) e compatibilidade retroativa (blobs de localStorage e exports reconstruídos byte a byte da versão antiga — 74/74 casos passaram, sem quebra).
+
+Achados confirmados e corrigidos na sequência:
+
+| # | Achado | Severidade | Correção |
+|---|---|---|---|
+| SAVE-GUARD-DESYNC-1 | Tap duplicado rejeitado pelo throttle ainda mutava o estado do formulário (seleção "fantasma" na mão seguinte) | Major | Guard checado antes do `setState` nos três call sites de save |
+| AUD-1 | `foldVsCbet` sem gate de papel: agressor foldando para donk-bet poluía uma estatística de calling range | Major | Contadores `fold_to_cbet`/`call_cbet` agora exigem `!wasAggressor` |
+| AUD-2 | Mão fold-type corrompida (`fold`+`cbet`+`sd_win`) num blob adulterado inflava sawFlop/WTSD | Major | Invariante imposta em duas camadas: `calculateStats` deriva flop/showdown como impossíveis para folds; `normalizeHand` coage `flopAction`/`result` no load |
+| PARSER-BIGRAM-FOLDCBET | Em texto livre, `fold cbet` era engolido pelo bigrama do rótulo legado "Fold C-Bet", errando o parse | Medium | Bigrama de campo inferior não consome token que sozinho resolve um campo superior ainda vazio |
+| EXPORT-PLAYERCOUNT-SESSION-LEVEL | Export gravava um único `Jogadores:` com o valor AO VIVO da sessão — reimportar re-carimbava o histórico inteiro (ATS distorcido em sessões de tamanho misto) | Critical | Cabeçalho passa a ser o tamanho modal das mãos exportadas + marcador por linha `| Nmax` para mãos de tamanho divergente, parseado de volta por mão |
+
+Todos os cinco receberam testes de regressão (suíte: 73 testes). Nenhum outro achado sobreviveu à verificação.

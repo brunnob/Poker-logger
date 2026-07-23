@@ -246,9 +246,13 @@ describe('new-format export/import round trip', () => {
     });
   });
 
-  it('same fixtures re-exported with playerCount 9 come back with playerCount 9 from the header', () => {
-    const newestFirstInput = [...oldestFirstFixtures].reverse();
-    const text = buildExportText(newestFirstInput, 9);
+  it('hands stamped at playerCount 9 come back with playerCount 9 from the header', () => {
+    // The header derives from the hands' own (modal) table size, not from the
+    // fallback argument — a live session setting must never re-stamp history
+    // (audit finding EXPORT-PLAYERCOUNT-SESSION-LEVEL).
+    const newestFirstInput = [...oldestFirstFixtures].reverse().map(h => ({ ...h, playerCount: 9 }));
+    const text = buildExportText(newestFirstInput, 6);
+    expect(text).toContain('Jogadores: 9');
     const { hands, errors } = parseImport(text);
 
     expect(errors).toEqual([]);
@@ -257,5 +261,52 @@ describe('new-format export/import round trip', () => {
     // spot-check chronology and identity still hold under the 9-max header
     expect(hands[0].preFlopAction).toBe(oldestFirstFixtures[0].preFlopAction);
     expect(hands[hands.length - 1].preFlopAction).toBe(oldestFirstFixtures[oldestFirstFixtures.length - 1].preFlopAction);
+  });
+});
+
+describe('PARSER-BIGRAM-FOLDCBET - fold + cbet are two fields, not the Fold C-Bet label', () => {
+  it('free-format "72o UTG fold cbet" parses as a preflop fold, not a parse error', () => {
+    const h = expectParsed('72o UTG fold cbet');
+    expect(h.preFlopAction).toBe('fold');
+    expect(h.flopAction).toBe('none');
+    expect(h.result).toBe('ns_loss');
+  });
+
+  it('legacy "Call Open → Fold C-Bet" still resolves the flop-label bigram', () => {
+    const h = expectParsed('JTs BB | Call Open → Fold C-Bet | NS LOSS');
+    expect(h.preFlopAction).toBe('call_open');
+    expect(h.flopAction).toBe('fold_to_cbet');
+  });
+});
+
+describe('EXPORT-PLAYERCOUNT - mixed table sizes round-trip per hand', () => {
+  const mk = (playerCount: number, n: number): Hand => ({
+    id: `pc-${n}`, timestamp: 1000 + n, position: 'BTN', card1: 'A', card2: 'K',
+    handType: 'suited', preFlopAction: 'open', flopAction: 'cbet', result: 'ns_win',
+    playerCount, smallStackMode: false,
+  });
+
+  it('header carries the modal size and minority hands carry an explicit Nmax marker', () => {
+    // newest-first in memory: one 6-max hand on top of two 9-max hands
+    const hands = [mk(6, 3), mk(9, 2), mk(9, 1)];
+    const txt = buildExportText(hands, 6);
+    expect(txt).toContain('Jogadores: 9');
+    expect(txt).toContain('| 6max');
+    const back = parseImport(txt, 2);
+    expect(back.errors).toHaveLength(0);
+    expect(back.hands.map(h => h.playerCount)).toEqual([9, 9, 6]);
+  });
+
+  it('a hand logged at another size does not get re-stamped by the header', () => {
+    const hands = [mk(9, 2), mk(6, 1)];
+    const back = parseImport(buildExportText(hands, 9), 4);
+    expect(back.errors).toHaveLength(0);
+    expect(back.hands.map(h => h.playerCount).sort()).toEqual([6, 9]);
+  });
+
+  it('free-format "7max" marker overrides the fallback player count', () => {
+    const r = parseImport('AKs CO open cbet ns_win 7max', 6);
+    expect(r.errors).toHaveLength(0);
+    expect(r.hands[0].playerCount).toBe(7);
   });
 });

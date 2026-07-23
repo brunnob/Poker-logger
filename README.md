@@ -64,7 +64,7 @@ Jogadores: 6
 #2 14:29:40 | QQ BTN | 3bet → cbet | sd_win
 ```
 
-A linha `Jogadores: N` restaura o tamanho de mesa da sessão exportada ao importar. O **Importar** aceita esse formato de volta e também:
+A linha `Jogadores: N` traz o tamanho de mesa predominante entre as mãos exportadas e o restaura ao importar; mãos jogadas em mesa de outro tamanho carregam um marcador próprio na linha (ex.: `| 7max`), então sessões que mudaram de tamanho no meio fazem o round-trip por mão, sem re-carimbar o histórico. O **Importar** aceita esse formato de volta e também:
 
 - **Exports antigos**: rótulos por extenso (`Call Open`, `SD WIN`, `Fold 3B`...) e numeração decrescente (mão mais nova primeiro no arquivo) são detectados e normalizados automaticamente.
 - **Texto livre**, uma mão por linha, ordem dos elementos não importa:

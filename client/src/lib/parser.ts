@@ -62,7 +62,7 @@ export function parseCompactHand(token: string): { card1: CardRank; card2: CardR
   return null;
 }
 
-export function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { error: string } {
+export function parseLine(line: string, defaultPlayerCount: number = 6): Omit<Hand, 'id' | 'timestamp'> | { error: string } {
   // Extract inline Notes: ... and SS mode markers before tokenizing
   let notes: string | undefined;
   const notesMatch = line.match(/[|·]?\s*Notes?\s*:\s*(.+?)\s*$/i);
@@ -87,11 +87,14 @@ export function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { erro
   let flopAction: FlopAction = 'none';
   let result: HandResult | null = null;
   let pendingCards: CardRank[] = [];
+  let linePlayerCount: number | null = null;
 
   let i = 0;
   while (i < tokens.length) {
     const raw = tokens[i];
     const nextRaw = tokens[i + 1];
+    const upper = raw.toUpperCase();
+    const norm = normalizeToken(raw);
 
     // Bigram pass (C1 fix): legacy human-readable exports split one action
     // across two whitespace-separated tokens ("Call Open", "Fold 3B", "SD
@@ -111,7 +114,11 @@ export function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { erro
         i += 2;
         continue;
       }
-      if (flopAction === 'none' && FLOP_ALIASES[bigram]) {
+      // A lower-precedence bigram must not swallow a token that on its own
+      // resolves a still-unset higher-precedence field: "fold cbet" is a
+      // preflop fold followed by a flop cbet, not the "Fold C-Bet" flop label
+      // (that label only ever appears after a preflop action is already set).
+      if (flopAction === 'none' && FLOP_ALIASES[bigram] && !(!preFlopAction && PREFLOP_ALIASES[norm])) {
         flopAction = FLOP_ALIASES[bigram];
         i += 2;
         continue;
@@ -123,10 +130,17 @@ export function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { erro
       }
     }
 
-    const upper = raw.toUpperCase();
-    const norm = normalizeToken(raw);
-
     if (POSITIONS_SET.has(upper)) { position = upper as PokerPosition; i++; continue; }
+
+    // Per-hand table-size marker ("7max" / "7-max"), emitted by the export
+    // for hands whose size differs from the file header (M5: a mixed-size
+    // session must round-trip per hand, not per file).
+    const maxMatch = /^([2-9])-?max$/i.exec(raw);
+    if (maxMatch && linePlayerCount === null) {
+      linePlayerCount = parseInt(maxMatch[1], 10);
+      i++;
+      continue;
+    }
 
     const compact = parseCompactHand(raw);
     if (compact && !hand.card1) { hand = compact; pendingCards = []; i++; continue; }
@@ -171,7 +185,7 @@ export function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { erro
     return {
       position, card1: hand.card1, card2: hand.card2, handType: hand.handType,
       preFlopAction, flopAction: 'none', result: 'ns_loss',
-      playerCount: 6, smallStackMode,
+      playerCount: linePlayerCount ?? defaultPlayerCount, smallStackMode,
       ...(notes && { notes }),
     };
   }
@@ -180,7 +194,7 @@ export function parseLine(line: string): Omit<Hand, 'id' | 'timestamp'> | { erro
   return {
     position, card1: hand.card1, card2: hand.card2, handType: hand.handType,
     preFlopAction, flopAction, result,
-    playerCount: 6, smallStackMode,
+    playerCount: linePlayerCount ?? defaultPlayerCount, smallStackMode,
     ...(notes && { notes }),
   };
 }
@@ -217,11 +231,10 @@ export function parseImport(text: string, fallbackPlayerCount: number = 6): Pars
     const numMatch = raw.match(/^#(\d+)/);
     if (numMatch) handNumbers.push(parseInt(numMatch[1], 10));
 
-    const parsed = parseLine(raw);
+    const parsed = parseLine(raw, playerCount);
     if ('error' in parsed) {
       result.errors.push({ line: i + 1, text: raw, reason: parsed.error });
     } else {
-      parsed.playerCount = playerCount;
       result.hands.push(parsed);
     }
   }
