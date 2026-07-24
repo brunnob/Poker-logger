@@ -407,7 +407,10 @@ export default function PokerLogger() {
                 <Section title="Ação no flop" step="05" optional>
                   <div className="grid grid-cols-2 gap-1">
                     {([
-                      ['none', 'Não vi o flop'],
+                      // A passive call closes the preflop betting, so "didn't
+                      // see the flop" is impossible there — the same 'none'
+                      // value then reads as "no flop action to record".
+                      ['none', preFlopAction && ['limp', 'call_open', 'call_3bet'].includes(preFlopAction) ? 'Sem ação no flop' : 'Não vi o flop'],
                       ['cbet', 'C-Bet'],
                       ['no_cbet', 'Check (sem C-Bet)'],
                       ['call_cbet', 'Call C-Bet'],

@@ -62,6 +62,31 @@ describe('H1 - showdown implies seeing the board', () => {
   });
 });
 
+describe('H8 - passive preflop calls imply seeing the flop', () => {
+  it('call_open with flopAction none and ns result still counts in sawFlop and the WTSD denominator', () => {
+    const hands: Hand[] = [
+      makeHand({ preFlopAction: 'call_open', flopAction: 'none', result: 'ns_loss' }),
+      makeHand({ preFlopAction: 'call_3bet', flopAction: 'none', result: 'ns_win' }),
+      makeHand({ preFlopAction: 'limp', flopAction: 'none', result: 'ns_loss' }),
+      makeHand({ preFlopAction: 'call_open', flopAction: 'none', result: 'sd_win' }),
+    ];
+    const stats = calculateStats(hands);
+    expect(stats.sawFlop).toBe(4);
+    expect(stats.flopSeen).toBe(100);
+    expect(stats.wtsd).toBe(25); // 1 showdown / 4 flops seen
+  });
+
+  it('aggressor hands with no flop action stay out of sawFlop (open can win the blinds preflop)', () => {
+    const hands: Hand[] = [
+      makeHand({ preFlopAction: 'open', flopAction: 'none', result: 'ns_win' }),
+      makeHand({ preFlopAction: '3bet', flopAction: 'none', result: 'ns_win' }),
+    ];
+    const stats = calculateStats(hands);
+    expect(stats.sawFlop).toBe(0);
+    expect(stats.wtsd).toBe(0);
+  });
+});
+
 describe('H3 - steals include the small blind', () => {
   it('SB open counts as a steal attempt and opportunity at playerCount 6', () => {
     const hands: Hand[] = [

@@ -4,6 +4,12 @@ import { getHandRange } from './ranges';
 export const FOLD_PREFLOP_ACTIONS: PreFlopAction[] = ['fold', 'fold_to_raise', 'fold_to_3bet', 'fold_to_4bet_plus', 'fold_to_allin', 'limp_fold'];
 export const isFoldPreflop = (a: PreFlopAction) => FOLD_PREFLOP_ACTIONS.includes(a);
 
+// Passive actions that close the preflop betting: a raise arriving behind
+// would have been logged as call_3bet / fold_to_raise / fold_to_3bet /
+// limp_fold instead, so a hand saved with one of these necessarily reached
+// the flop even when no flop action was recorded.
+export const FLOP_IMPLIED_ACTIONS: PreFlopAction[] = ['limp', 'call_open', 'call_3bet'];
+
 export const VOLUNTARY_ACTIONS: PreFlopAction[] = [
   'limp', 'open', 'call_open', '3bet', 'call_3bet', '4bet_plus',
   'fold_to_3bet', 'fold_to_4bet_plus', 'limp_fold',
@@ -56,7 +62,8 @@ export function calculateStats(hands: Hand[]) {
     // seen, even on a preflop all-in with no flop action recorded.
     const foldedPreflop = isFoldPreflop(h.preFlopAction);
     const sawShowdown = !foldedPreflop && (h.result === 'sd_win' || h.result === 'sd_loss');
-    const sawFlopThisHand = !foldedPreflop && (h.flopAction !== 'none' || sawShowdown);
+    const sawFlopThisHand = !foldedPreflop
+      && (h.flopAction !== 'none' || sawShowdown || FLOP_IMPLIED_ACTIONS.includes(h.preFlopAction));
     if (wasAggressor && sawFlopThisHand) {
       if (h.flopAction === 'cbet') cBetMade++;
       else if (h.flopAction === 'no_cbet') cBetMissed++;
