@@ -460,11 +460,16 @@ export default function PokerLogger() {
             <button onClick={resetForm}
               className="px-4 py-2 border border-stone-300 mono text-xs font-bold uppercase tracking-wider hover:bg-stone-100">Limpar</button>
             {card1 && card2 && handType && !preFlopAction ? (
-              // Quick-fold shortcut for the hot path (cards -> fold): same as
-              // the Fold button in step 04. Hidden once a preflop action is
-              // chosen, so it can't retroactively rewrite a played hand.
-              <button onClick={() => handlePreFlopAction('fold')}
-                className="flex-1 py-2.5 bg-stone-900 text-stone-50 mono text-xs font-bold uppercase tracking-wider hover:bg-stone-800">Fold</button>
+              // Quick-fold shortcuts for the hot path (cards -> fold): same as
+              // the Fold / Fold ao Raise buttons in step 04. Hidden once a
+              // preflop action is chosen, so they can't retroactively rewrite
+              // a played hand.
+              <>
+                <button onClick={() => handlePreFlopAction('fold_to_raise')}
+                  className="px-4 py-2 border border-stone-900 bg-stone-50 text-stone-900 mono text-[10px] font-bold uppercase tracking-wider hover:bg-stone-200">Fold ao Raise</button>
+                <button onClick={() => handlePreFlopAction('fold')}
+                  className="flex-1 py-2.5 bg-stone-900 text-stone-50 mono text-xs font-bold uppercase tracking-wider hover:bg-stone-800">Fold</button>
+              </>
             ) : (
               <span className="mono text-[10px] font-bold uppercase tracking-wider text-stone-400 text-right">Resultado salva automaticamente</span>
             )}
