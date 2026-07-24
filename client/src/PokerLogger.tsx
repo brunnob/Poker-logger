@@ -757,7 +757,7 @@ function StatsView({ stats, hands, playerCount }: { stats: ReturnType<typeof cal
 
           <div>
             <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-3">Resultados</h3>
-            <ResultBars results={scoped.results} total={scoped.total} foldPf={scoped.foldPf} />
+            <ResultBars results={scoped.results} total={scoped.total} foldPf={scoped.foldPf} hands={scopedHands} />
           </div>
 
           <div>
@@ -794,25 +794,62 @@ function Metric({ label, value, accent }: { label: string; value: number; accent
   );
 }
 
-function ResultBars({ results, total, foldPf }: { results: { sdWin: number; sdLoss: number; nsWin: number; nsLoss: number }; total: number; foldPf?: number }) {
+function ResultBars({ results, total, foldPf, hands }: { results: { sdWin: number; sdLoss: number; nsWin: number; nsLoss: number }; total: number; foldPf?: number; hands: Hand[] }) {
   const foldPfCount = foldPf ? Math.round((foldPf / 100) * total) : 0;
   const nsLossAdjusted = results.nsLoss - foldPfCount;
   const items = [
-    { label: 'SD Win', val: results.sdWin, color: 'bg-emerald-500' },
-    { label: 'NS Win', val: results.nsWin, color: 'bg-emerald-200' },
-    { label: 'NS Loss', val: nsLossAdjusted, color: 'bg-rose-200' },
-    { label: 'SD Loss', val: results.sdLoss, color: 'bg-rose-500' },
+    { label: 'SD Win', val: results.sdWin, color: 'bg-emerald-500', match: (h: Hand) => !isFoldPreflop(h.preFlopAction) && h.result === 'sd_win' },
+    { label: 'NS Win', val: results.nsWin, color: 'bg-emerald-200', match: (h: Hand) => !isFoldPreflop(h.preFlopAction) && h.result === 'ns_win' },
+    { label: 'NS Loss', val: nsLossAdjusted, color: 'bg-rose-200', match: (h: Hand) => !isFoldPreflop(h.preFlopAction) && h.result === 'ns_loss' },
+    { label: 'SD Loss', val: results.sdLoss, color: 'bg-rose-500', match: (h: Hand) => !isFoldPreflop(h.preFlopAction) && h.result === 'sd_loss' },
+    { label: 'Fold PF', val: foldPfCount, color: 'bg-stone-400', match: (h: Hand) => isFoldPreflop(h.preFlopAction) },
   ];
-  const allItems = [...items, { label: 'Fold PF', val: foldPfCount, color: 'bg-stone-400' }];
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const openItem = items.find(i => i.label === expanded);
+  const openHands = openItem ? hands.filter(openItem.match) : [];
   return (
-    <div className="flex gap-1">
-      {allItems.map(item => (
-          <div key={item.label} className="flex-1">
-            <div className={`h-6 ${item.color}`} style={{ width: '100%' }} />
-            <div className="mono text-[9px] font-bold text-center mt-1">{item.label}</div>
-            <div className="num text-[10px] font-bold text-center">{item.val}</div>
-          </div>
-        ))}
+    <div>
+      <div className="flex gap-1">
+        {items.map(item => {
+          const isOpen = expanded === item.label;
+          const isClickable = item.val > 0;
+          return (
+            <button key={item.label} type="button"
+              onClick={() => isClickable && setExpanded(isOpen ? null : item.label)}
+              disabled={!isClickable}
+              className={`flex-1 pb-1 border transition-colors ${
+                isOpen ? 'border-stone-900 bg-stone-50' : 'border-transparent'
+              } ${isClickable ? 'hover:border-stone-900 cursor-pointer' : 'cursor-default'}`}>
+              <div className={`h-6 ${item.color}`} style={{ width: '100%' }} />
+              <div className="mono text-[9px] font-bold text-center mt-1">{item.label}</div>
+              <div className="num text-[10px] font-bold text-center">{item.val}{isClickable && <span className="text-stone-400"> {isOpen ? '−' : '+'}</span>}</div>
+            </button>
+          );
+        })}
+      </div>
+      {openItem && openHands.length > 0 && (
+        <div className="mt-1 border border-stone-900 bg-white divide-y divide-stone-100">
+          {openHands.map(h => {
+            const isWin = h.result === 'sd_win' || h.result === 'ns_win';
+            const isFold = isFoldPreflop(h.preFlopAction);
+            const resultColor = isFold ? 'text-stone-400' : isWin ? 'text-emerald-700' : 'text-rose-700';
+            return (
+              <div key={h.id} className="flex items-center gap-2 px-2 py-1.5">
+                <span className="num text-[11px] font-bold w-12">{handNotation(h.card1, h.card2, h.handType)}</span>
+                <span className="mono text-[9px] font-bold uppercase tracking-wider text-stone-500 w-10">{h.position}</span>
+                <span className="mono text-[9px] uppercase tracking-wider text-stone-700 flex-1 truncate">
+                  {ACTION_LABEL[h.preFlopAction]}
+                  {h.flopAction !== 'none' && <> · {ACTION_LABEL[h.flopAction]}</>}
+                </span>
+                <span className={`mono text-[9px] font-bold uppercase tracking-wider ${resultColor}`}>
+                  {isFold ? 'FOLD' : h.result.replace('_', ' ').toUpperCase()}
+                </span>
+                {h.notes && <StickyNote className="w-3 h-3 text-stone-700" fill="currentColor" />}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
