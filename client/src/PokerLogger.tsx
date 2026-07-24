@@ -254,17 +254,17 @@ export default function PokerLogger() {
       `}</style>
 
       <header className="sticky top-0 z-30 bg-stone-50/95 backdrop-blur border-b border-stone-300">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-2xl mx-auto px-4 py-1.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 bg-stone-900 rotate-45" />
             <h1 className="mono text-xs font-bold tracking-[0.2em] uppercase">Hand Logger</h1>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={undoLast} disabled={session.hands.length === 0}
-              className="p-2 text-stone-700 hover:bg-stone-200 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              className="p-1.5 text-stone-700 hover:bg-stone-200 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
               title="Desfazer última mão"><Undo2 className="w-4 h-4" /></button>
             <button onClick={() => setConfirmReset(true)}
-              className="p-2 text-stone-700 hover:bg-stone-200 transition-colors"
+              className="p-1.5 text-stone-700 hover:bg-stone-200 transition-colors"
               title="Zerar sessão"><RotateCcw className="w-4 h-4" /></button>
           </div>
         </div>
@@ -276,7 +276,7 @@ export default function PokerLogger() {
             ['history', 'Histórico', HistoryIcon],
           ] as const).map(([key, label, Icon]) => (
             <button key={key} onClick={() => setTab(key)}
-              className={`flex-1 py-3 mono text-xs font-bold tracking-wider uppercase border-b-2 transition-all flex items-center justify-center gap-2 ${
+              className={`flex-1 py-2 mono text-xs font-bold tracking-wider uppercase border-b-2 transition-all flex items-center justify-center gap-2 ${
                 tab === key ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-400 hover:text-stone-700'
               }`}>
               <Icon className="w-3.5 h-3.5" />{label}
@@ -304,10 +304,10 @@ export default function PokerLogger() {
         </div>
       )}
 
-      <main className="max-w-2xl mx-auto px-4 py-6 pb-32">
+      <main className="max-w-2xl mx-auto px-4 py-3 pb-28">
         {tab === 'logger' && (
-          <div className="space-y-8">
-            <div className="flex items-baseline justify-between border-b border-stone-300 pb-3">
+          <div className="space-y-4">
+            <div className="flex items-baseline justify-between border-b border-stone-300 pb-2">
               <div>
                 <span className="mono text-[10px] font-bold tracking-widest uppercase text-stone-500">Mesa</span>
                 <span className="num ml-2 text-sm font-bold">{session.playerCount}-max</span>
@@ -334,7 +334,7 @@ export default function PokerLogger() {
               <div className="grid grid-cols-8 gap-1">
                 {[2, 3, 4, 5, 6, 7, 8, 9].map(n => (
                   <button key={n} onClick={() => { setPlayerCount(n); scrollTo('position'); }}
-                    className={`mono h-9 text-[11px] font-bold tracking-wide border transition-colors ${
+                    className={`mono h-8 text-[11px] font-bold tracking-wide border transition-colors ${
                       session.playerCount === n
                         ? 'bg-stone-900 text-stone-50 border-stone-900'
                         : 'bg-stone-100 text-stone-600 border-stone-300 hover:border-stone-900'
@@ -345,10 +345,10 @@ export default function PokerLogger() {
 
             <div ref={el => { sectionRefs.current['position'] = el; }} className="scroll-mt-20">
               <Section title="Sua posição" step="02">
-                <div className="grid grid-cols-3 gap-1">
+                <div className="grid grid-cols-5 gap-1">
                   {positions.map((p, i) => (
                     <button key={p} onClick={() => { setPositionIndex(i); scrollTo('cards'); }}
-                      className={`mono h-10 text-xs font-bold uppercase tracking-wider border transition-colors ${
+                      className={`mono h-9 text-[11px] font-bold uppercase tracking-wider border transition-colors ${
                         session.currentPositionIndex === i
                           ? 'bg-stone-900 text-stone-50 border-stone-900'
                           : 'bg-stone-50 border-stone-300 hover:border-stone-900'
@@ -360,7 +360,7 @@ export default function PokerLogger() {
 
             <div ref={el => { sectionRefs.current['cards'] = el; }} className="scroll-mt-20">
               <Section title="Suas cartas" step="03">
-                <div className="space-y-4">
+                <div className="space-y-2">
                   <div>
                     <div className="grid grid-cols-7 gap-1">
                       {CARD_RANKS.map(r => {
@@ -368,7 +368,7 @@ export default function PokerLogger() {
                         const sel = r === card1 || r === card2;
                         return (
                           <button key={r} onClick={() => handleRankClick(r)}
-                            className={`num h-10 text-base font-bold border transition-colors ${
+                            className={`num h-9 text-base font-bold border transition-colors ${
                               sel ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-white border-stone-300 hover:border-stone-900'
                             }`}>{r}{isPairSelected && r === card1 && <span className="text-[9px] align-super">×2</span>}</button>
                         );
@@ -379,12 +379,11 @@ export default function PokerLogger() {
                     const isPairSelected = card1 === card2;
                     const twoDistinct = card2 !== null && card1 !== card2;
                     const typeBtn = (selected: boolean, disabled: boolean) =>
-                      `mono h-10 text-xs font-bold uppercase tracking-wider border transition-colors disabled:opacity-30 disabled:hover:border-stone-300 ${
+                      `mono h-9 text-xs font-bold uppercase tracking-wider border transition-colors disabled:opacity-30 disabled:hover:border-stone-300 ${
                         selected ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-stone-50 border-stone-300 hover:border-stone-900'
                       }`;
                     return (
                       <div>
-                        <Label>Tipo</Label>
                         <div className={`grid gap-1 ${twoDistinct ? 'grid-cols-2' : 'grid-cols-3'}`}>
                           {!twoDistinct && (
                             <button onClick={() => {
@@ -532,7 +531,7 @@ export default function PokerLogger() {
 function Section({ title, step, optional, children }: { title: string; step: string; optional?: boolean; children: React.ReactNode }) {
   return (
     <section>
-      <div className="flex items-baseline gap-3 mb-3">
+      <div className="flex items-baseline gap-3 mb-1.5">
         <span className="num text-xs font-bold text-stone-400">{step}</span>
         <h2 className="text-sm font-bold tracking-tight">{title}</h2>
         {optional && <span className="mono text-[10px] uppercase tracking-wider text-stone-400">opcional</span>}
