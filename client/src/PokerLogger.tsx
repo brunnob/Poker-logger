@@ -938,7 +938,17 @@ function HistoryView({ hands, existingCount, playerCount, onDelete, onImport, on
                 isOpen={openSwipeId === h.id}
                 onOpen={() => setOpenSwipeId(h.id)}
                 onClose={() => setOpenSwipeId(prev => prev === h.id ? null : prev)}
-                onDelete={() => { setOpenSwipeId(null); onDelete(h.id); }}>
+                actions={[
+                  { key: 'note', label: 'Nota', icon: <StickyNote className="w-4 h-4" fill={h.notes ? 'currentColor' : 'none'} />,
+                    className: 'bg-stone-500 text-white hover:bg-stone-600',
+                    onClick: () => { setOpenSwipeId(null); setEditingNote(h); } },
+                  { key: 'edit', label: 'Editar', icon: <Pencil className="w-4 h-4" />,
+                    className: 'bg-stone-900 text-white hover:bg-stone-800',
+                    onClick: () => { setOpenSwipeId(null); setEditingHand(h); } },
+                  { key: 'delete', label: 'Apagar', icon: <Trash2 className="w-4 h-4" />,
+                    className: 'bg-rose-600 text-white hover:bg-rose-700',
+                    onClick: () => { setOpenSwipeId(null); onDelete(h.id); } },
+                ]}>
                 <div className={`bg-stone-50 border border-stone-200 border-l-4 ${accent} p-3 flex items-center gap-3`}>
                   <span className="num text-[10px] font-bold text-stone-400 w-8">#{num}</span>
                   <span className="num text-base font-bold w-14">{notation}</span>
@@ -952,14 +962,7 @@ function HistoryView({ hands, existingCount, playerCount, onDelete, onImport, on
                   <span className={`mono text-[10px] font-bold uppercase tracking-wider ${
                     isFold ? 'text-stone-400' : isWin ? 'text-emerald-700' : 'text-rose-700'
                   }`}>{isFold ? 'FOLD' : h.result.replace('_', ' ').toUpperCase()}</span>
-                  <button onClick={() => setEditingNote(h)}
-                    className={`transition-colors ${h.notes ? 'text-stone-700 hover:text-stone-900' : 'text-stone-300 hover:text-stone-600'}`}
-                    title={h.notes ? 'Editar nota' : 'Adicionar nota'}>
-                    <StickyNote className="w-3.5 h-3.5" fill={h.notes ? 'currentColor' : 'none'} />
-                  </button>
-                  <button onClick={() => setEditingHand(h)} className="text-stone-400 hover:text-stone-900 transition-colors" title="Editar mão">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
+                  {h.notes && <StickyNote className="w-3 h-3 text-stone-400 shrink-0" fill="currentColor" />}
                 </div>
               </SwipeableRow>
             );
@@ -982,21 +985,23 @@ function HistoryView({ hands, existingCount, playerCount, onDelete, onImport, on
   );
 }
 
-// Swipe-left-to-delete row: dragging the row left (touch or mouse) reveals a
-// red "Apagar" action behind it; tapping the action deletes, tapping the row
-// (or swiping right) closes it. Vertical movement is handed back to the page
-// scroll, so the gesture only claims clearly horizontal drags.
-const SWIPE_WIDTH = 88;
-function SwipeableRow({ isOpen, onOpen, onClose, onDelete, children }: {
-  isOpen: boolean; onOpen: () => void; onClose: () => void; onDelete: () => void;
+// Swipe-left row: dragging the row left (touch or mouse) reveals an action
+// tray behind it (note / edit / delete); tapping an action runs it, tapping
+// the row (or swiping right) closes the tray. Vertical movement is handed
+// back to the page scroll, so the gesture only claims clearly horizontal drags.
+const SWIPE_ACTION_WIDTH = 64;
+function SwipeableRow({ isOpen, onOpen, onClose, actions, children }: {
+  isOpen: boolean; onOpen: () => void; onClose: () => void;
+  actions: { key: string; label: string; icon: React.ReactNode; className: string; onClick: () => void }[];
   children: React.ReactNode;
 }) {
+  const width = actions.length * SWIPE_ACTION_WIDTH;
   const [dragX, setDragX] = useState<number | null>(null);
   const start = useRef<{ x: number; y: number; base: number } | null>(null);
   const axis = useRef<'h' | 'v' | null>(null);
   const moved = useRef(false);
 
-  const settled = isOpen ? -SWIPE_WIDTH : 0;
+  const settled = isOpen ? -width : 0;
   const x = dragX ?? settled;
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -1015,12 +1020,12 @@ function SwipeableRow({ isOpen, onOpen, onClose, onDelete, children }: {
     }
     if (axis.current !== 'h') return;
     moved.current = true;
-    setDragX(Math.min(0, Math.max(-SWIPE_WIDTH, start.current.base + dx)));
+    setDragX(Math.min(0, Math.max(-width, start.current.base + dx)));
   };
   const endDrag = () => {
     if (!start.current) return;
     if (axis.current === 'h' && dragX !== null) {
-      if (dragX < -SWIPE_WIDTH / 2) onOpen(); else onClose();
+      if (dragX < -width / 3) onOpen(); else onClose();
     }
     start.current = null;
     axis.current = null;
@@ -1029,12 +1034,16 @@ function SwipeableRow({ isOpen, onOpen, onClose, onDelete, children }: {
 
   return (
     <div className="relative overflow-hidden">
-      <button type="button" onClick={onDelete}
-        className="absolute inset-y-0 right-0 bg-rose-600 text-white flex flex-col items-center justify-center gap-0.5 hover:bg-rose-700 transition-colors"
-        style={{ width: SWIPE_WIDTH }} tabIndex={isOpen ? 0 : -1} aria-hidden={!isOpen}>
-        <Trash2 className="w-4 h-4" />
-        <span className="mono text-[9px] font-bold uppercase tracking-wider">Apagar</span>
-      </button>
+      <div className="absolute inset-y-0 right-0 flex" style={{ width }}>
+        {actions.map(a => (
+          <button key={a.key} type="button" onClick={a.onClick}
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${a.className}`}
+            tabIndex={isOpen ? 0 : -1} aria-hidden={!isOpen}>
+            {a.icon}
+            <span className="mono text-[9px] font-bold uppercase tracking-wider">{a.label}</span>
+          </button>
+        ))}
+      </div>
       <div
         onPointerDown={onPointerDown} onPointerMove={onPointerMove}
         onPointerUp={endDrag} onPointerCancel={endDrag}
