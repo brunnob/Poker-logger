@@ -219,6 +219,29 @@ export default function PokerLogger() {
     setTab('stats');
   };
 
+  // Single-row card picker. Selection is a 2-slot stack (card1 = oldest):
+  // tapping a selected rank removes it, tapping a new rank fills the free
+  // slot, and with both slots taken the newest selection (card2) is replaced
+  // (LIFO). Pairs are made via the "Par" type button, never by re-tapping.
+  const handleRankClick = (r: CardRank) => {
+    const isPairSelected = card1 !== null && card1 === card2;
+    setHandType(null);
+    if (isPairSelected) {
+      if (r === card1) { setCard1(null); setCard2(null); }
+      else setCard2(r);
+      return;
+    }
+    if (card1 === null) { setCard1(r); return; }
+    if (card2 === null) {
+      if (r === card1) setCard1(null);
+      else setCard2(r);
+      return;
+    }
+    if (r === card1) { setCard1(card2); setCard2(null); return; }
+    if (r === card2) { setCard2(null); return; }
+    setCard2(r);
+  };
+
   const isFoldPreFlop = preFlopAction && isFoldPreflop(preFlopAction);
 
   if (!loaded) return <div className="p-8 font-mono text-sm text-stone-500">Carregando…</div>;
@@ -338,33 +361,48 @@ export default function PokerLogger() {
             <div ref={el => { sectionRefs.current['cards'] = el; }} className="scroll-mt-20">
               <Section title="Suas cartas" step="03">
                 <div className="space-y-4">
-                  <CardGrid label="Carta 1" rank={CARD_RANKS} selected={card1}
-                    onSelect={c => { setCard1(c); setCard2(null); setHandType(null); scrollTo('card2'); }} />
-                  {card1 && (
-                    <div ref={el => { sectionRefs.current['card2'] = el; }} className="scroll-mt-20">
-                      <CardGrid label="Carta 2" rank={CARD_RANKS} selected={card2}
-                        onSelect={c => {
-                          setCard2(c);
-                          if (c !== card1) { setHandType(null); scrollTo('handType'); }
-                          else scrollTo('preflop');
-                        }} />
+                  <div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {CARD_RANKS.map(r => {
+                        const isPairSelected = card1 !== null && card1 === card2;
+                        const sel = r === card1 || r === card2;
+                        return (
+                          <button key={r} onClick={() => handleRankClick(r)}
+                            className={`num h-10 text-base font-bold border transition-colors ${
+                              sel ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-white border-stone-300 hover:border-stone-900'
+                            }`}>{r}{isPairSelected && r === card1 && <span className="text-[9px] align-super">×2</span>}</button>
+                        );
+                      })}
                     </div>
-                  )}
-                  {card1 && card2 && card1 !== card2 && (
-                    <div ref={el => { sectionRefs.current['handType'] = el; }} className="scroll-mt-20">
-                      <Label>Tipo</Label>
-                      <div className="grid grid-cols-2 gap-1">
-                        <button onClick={() => { setHandType('suited'); scrollTo('preflop'); }}
-                          className={`mono h-10 text-xs font-bold uppercase tracking-wider border transition-colors ${
-                            handType === 'suited' ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-stone-50 border-stone-300 hover:border-stone-900'
-                          }`}>Suited (s)</button>
-                        <button onClick={() => { setHandType('offsuit'); scrollTo('preflop'); }}
-                          className={`mono h-10 text-xs font-bold uppercase tracking-wider border transition-colors ${
-                            handType === 'offsuit' ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-stone-50 border-stone-300 hover:border-stone-900'
-                          }`}>Offsuit (o)</button>
+                  </div>
+                  {card1 && (() => {
+                    const isPairSelected = card1 === card2;
+                    const twoDistinct = card2 !== null && card1 !== card2;
+                    const typeBtn = (selected: boolean, disabled: boolean) =>
+                      `mono h-10 text-xs font-bold uppercase tracking-wider border transition-colors disabled:opacity-30 disabled:hover:border-stone-300 ${
+                        selected ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-stone-50 border-stone-300 hover:border-stone-900'
+                      }`;
+                    return (
+                      <div>
+                        <Label>Tipo</Label>
+                        <div className={`grid gap-1 ${twoDistinct ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                          {!twoDistinct && (
+                            <button onClick={() => {
+                              // Toggle: with a pair active, tapping Par goes back to a single card
+                              if (isPairSelected) { setCard2(null); setHandType(null); }
+                              else { setCard2(card1); setHandType('pair'); scrollTo('preflop'); }
+                            }} className={typeBtn(isPairSelected && handType === 'pair', false)}>Par</button>
+                          )}
+                          <button disabled={!twoDistinct}
+                            onClick={() => { setHandType('suited'); scrollTo('preflop'); }}
+                            className={typeBtn(handType === 'suited', !twoDistinct)}>Suited (s)</button>
+                          <button disabled={!twoDistinct}
+                            onClick={() => { setHandType('offsuit'); scrollTo('preflop'); }}
+                            className={typeBtn(handType === 'offsuit', !twoDistinct)}>Offsuit (o)</button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                   {card1 && card2 && handType && (
                     <div className="num text-xs text-stone-500 pt-1">
                       Notação: <span className="font-bold text-stone-900">{handNotation(card1, card2, handType)}</span>
@@ -506,22 +544,6 @@ function Section({ title, step, optional, children }: { title: string; step: str
 
 function Label({ children }: { children: React.ReactNode }) {
   return <p className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">{children}</p>;
-}
-
-function CardGrid({ label, rank, selected, onSelect }: { label: string; rank: CardRank[]; selected: CardRank | null; onSelect: (c: CardRank) => void }) {
-  return (
-    <div>
-      <Label>{label}</Label>
-      <div className="grid grid-cols-7 gap-1">
-        {rank.map(r => (
-          <button key={r} onClick={() => onSelect(r)}
-            className={`num h-10 text-base font-bold border transition-colors ${
-              selected === r ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-white border-stone-300 hover:border-stone-900'
-            }`}>{r}</button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function ResultBtn({ label, variant, selected, onClick }: { label: string; variant: 'sd-win' | 'sd-loss' | 'ns-win' | 'ns-loss'; selected: boolean; onClick: () => void }) {
