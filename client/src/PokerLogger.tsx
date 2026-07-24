@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Trash2, Undo2, BarChart3, History as HistoryIcon, ClipboardList, RotateCcw, StickyNote } from 'lucide-react';
+import { Trash2, Undo2, BarChart3, History as HistoryIcon, ClipboardList, RotateCcw, StickyNote, Pencil } from 'lucide-react';
 import { CardRank, HandType, PokerPosition, PreFlopAction, FlopAction, HandResult, HandRange, Hand, SessionState, CARD_RANKS, STORAGE_KEY, ACTION_LABEL, getPositions, advancePosition } from './lib/types';
 import { getHandRange, TOTAL_COMBOS, BUCKET_WEIGHTS, formatExpected, handNotation } from './lib/ranges';
 import { isFoldPreflop, calculateStats } from './lib/stats';
@@ -164,6 +164,14 @@ export default function PokerLogger() {
       ...prev,
       hands: prev.hands.map(h => h.id === id ? { ...h, notes: trimmed || undefined } : h),
     }));
+  };
+
+  const updateHand = (id: string, updates: Omit<Hand, 'id' | 'timestamp' | 'fromImport'>) => {
+    setSession(prev => ({
+      ...prev,
+      hands: prev.hands.map(h => h.id === id ? { ...h, ...updates } : h),
+    }));
+    showToast(`${handNotation(updates.card1, updates.card2, updates.handType)} atualizada`);
   };
 
   const setPlayerCount = (n: number) => {
@@ -450,7 +458,7 @@ export default function PokerLogger() {
         {tab === 'history' && (
           <HistoryView hands={session.hands} existingCount={session.hands.length} playerCount={session.playerCount}
             onDelete={deleteHand} onImport={importHands} onToast={showToast}
-            onUpdateNote={updateHandNote} />
+            onUpdateNote={updateHandNote} onUpdateHand={updateHand} />
         )}
       </main>
 
@@ -857,16 +865,19 @@ function ResultBars({ results, total, foldPf, hands }: { results: { sdWin: numbe
 // ============================================================
 // HISTORY + IMPORT
 // ============================================================
-function HistoryView({ hands, existingCount, playerCount, onDelete, onImport, onToast, onUpdateNote }: {
+function HistoryView({ hands, existingCount, playerCount, onDelete, onImport, onToast, onUpdateNote, onUpdateHand }: {
   hands: Hand[]; existingCount: number; playerCount: number;
   onDelete: (id: string) => void;
   onImport: (hands: Omit<Hand, 'id' | 'timestamp'>[], mode: 'replace' | 'append') => void;
   onToast: (msg: string) => void;
   onUpdateNote: (id: string, notes: string) => void;
+  onUpdateHand: (id: string, updates: Omit<Hand, 'id' | 'timestamp' | 'fromImport'>) => void;
 }) {
   const [showImport, setShowImport] = useState(false);
   const [exportState, setExportState] = useState<'idle' | 'copied' | 'error'>('idle');
   const [editingNote, setEditingNote] = useState<Hand | null>(null);
+  const [editingHand, setEditingHand] = useState<Hand | null>(null);
+  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
 
   const exportText = async () => {
     if (hands.length === 0) return;
@@ -920,28 +931,34 @@ function HistoryView({ hands, existingCount, playerCount, onDelete, onImport, on
             const isFold = isFoldPreflop(h.preFlopAction);
             const accent = isFold ? 'border-l-stone-300' : isWin ? 'border-l-emerald-500' : 'border-l-rose-500';
             return (
-              <div key={h.id} className={`bg-stone-50 border border-stone-200 border-l-4 ${accent} p-3 flex items-center gap-3`}>
-                <span className="num text-[10px] font-bold text-stone-400 w-8">#{num}</span>
-                <span className="num text-base font-bold w-14">{notation}</span>
-                <span className="mono text-[10px] text-stone-400">{getHandRange(h.card1, h.card2, h.handType)}</span>
-                {h.smallStackMode && <span className="mono text-[10px] font-bold text-stone-400 bg-stone-200 px-2 py-0.5 rounded">SS</span>}
-                <span className="mono text-[10px] font-bold uppercase tracking-wider text-stone-500 w-10">{h.position}</span>
-                <span className="mono text-[10px] uppercase tracking-wider text-stone-700 flex-1 truncate">
-                  {ACTION_LABEL[h.preFlopAction]}
-                  {h.flopAction !== 'none' && <> · {ACTION_LABEL[h.flopAction]}</>}
-                </span>
-                <span className={`mono text-[10px] font-bold uppercase tracking-wider ${
-                  isFold ? 'text-stone-400' : isWin ? 'text-emerald-700' : 'text-rose-700'
-                }`}>{isFold ? 'FOLD' : h.result.replace('_', ' ').toUpperCase()}</span>
-                <button onClick={() => setEditingNote(h)}
-                  className={`transition-colors ${h.notes ? 'text-stone-700 hover:text-stone-900' : 'text-stone-300 hover:text-stone-600'}`}
-                  title={h.notes ? 'Editar nota' : 'Adicionar nota'}>
-                  <StickyNote className="w-3.5 h-3.5" fill={h.notes ? 'currentColor' : 'none'} />
-                </button>
-                <button onClick={() => onDelete(h.id)} className="text-stone-400 hover:text-rose-600 transition-colors" title="Apagar">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              <SwipeableRow key={h.id}
+                isOpen={openSwipeId === h.id}
+                onOpen={() => setOpenSwipeId(h.id)}
+                onClose={() => setOpenSwipeId(prev => prev === h.id ? null : prev)}
+                onDelete={() => { setOpenSwipeId(null); onDelete(h.id); }}>
+                <div className={`bg-stone-50 border border-stone-200 border-l-4 ${accent} p-3 flex items-center gap-3`}>
+                  <span className="num text-[10px] font-bold text-stone-400 w-8">#{num}</span>
+                  <span className="num text-base font-bold w-14">{notation}</span>
+                  <span className="mono text-[10px] text-stone-400">{getHandRange(h.card1, h.card2, h.handType)}</span>
+                  {h.smallStackMode && <span className="mono text-[10px] font-bold text-stone-400 bg-stone-200 px-2 py-0.5 rounded">SS</span>}
+                  <span className="mono text-[10px] font-bold uppercase tracking-wider text-stone-500 w-10">{h.position}</span>
+                  <span className="mono text-[10px] uppercase tracking-wider text-stone-700 flex-1 truncate">
+                    {ACTION_LABEL[h.preFlopAction]}
+                    {h.flopAction !== 'none' && <> · {ACTION_LABEL[h.flopAction]}</>}
+                  </span>
+                  <span className={`mono text-[10px] font-bold uppercase tracking-wider ${
+                    isFold ? 'text-stone-400' : isWin ? 'text-emerald-700' : 'text-rose-700'
+                  }`}>{isFold ? 'FOLD' : h.result.replace('_', ' ').toUpperCase()}</span>
+                  <button onClick={() => setEditingNote(h)}
+                    className={`transition-colors ${h.notes ? 'text-stone-700 hover:text-stone-900' : 'text-stone-300 hover:text-stone-600'}`}
+                    title={h.notes ? 'Editar nota' : 'Adicionar nota'}>
+                    <StickyNote className="w-3.5 h-3.5" fill={h.notes ? 'currentColor' : 'none'} />
+                  </button>
+                  <button onClick={() => setEditingHand(h)} className="text-stone-400 hover:text-stone-900 transition-colors" title="Editar mão">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </SwipeableRow>
             );
           })}
         </div>
@@ -952,6 +969,258 @@ function HistoryView({ hands, existingCount, playerCount, onDelete, onImport, on
           onSave={(text) => { onUpdateNote(editingNote.id, text); setEditingNote(null); }}
           onClose={() => setEditingNote(null)} />
       )}
+
+      {editingHand && (
+        <EditHandModal hand={editingHand}
+          onSave={(updates) => { onUpdateHand(editingHand.id, updates); setEditingHand(null); }}
+          onClose={() => setEditingHand(null)} />
+      )}
+    </div>
+  );
+}
+
+// Swipe-left-to-delete row: dragging the row left (touch or mouse) reveals a
+// red "Apagar" action behind it; tapping the action deletes, tapping the row
+// (or swiping right) closes it. Vertical movement is handed back to the page
+// scroll, so the gesture only claims clearly horizontal drags.
+const SWIPE_WIDTH = 88;
+function SwipeableRow({ isOpen, onOpen, onClose, onDelete, children }: {
+  isOpen: boolean; onOpen: () => void; onClose: () => void; onDelete: () => void;
+  children: React.ReactNode;
+}) {
+  const [dragX, setDragX] = useState<number | null>(null);
+  const start = useRef<{ x: number; y: number; base: number } | null>(null);
+  const axis = useRef<'h' | 'v' | null>(null);
+  const moved = useRef(false);
+
+  const settled = isOpen ? -SWIPE_WIDTH : 0;
+  const x = dragX ?? settled;
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    start.current = { x: e.clientX, y: e.clientY, base: settled };
+    axis.current = null;
+    moved.current = false;
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!start.current) return;
+    const dx = e.clientX - start.current.x;
+    const dy = e.clientY - start.current.y;
+    if (axis.current === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      axis.current = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+      if (axis.current === 'h') (e.target as Element).setPointerCapture?.(e.pointerId);
+    }
+    if (axis.current !== 'h') return;
+    moved.current = true;
+    setDragX(Math.min(0, Math.max(-SWIPE_WIDTH, start.current.base + dx)));
+  };
+  const endDrag = () => {
+    if (!start.current) return;
+    if (axis.current === 'h' && dragX !== null) {
+      if (dragX < -SWIPE_WIDTH / 2) onOpen(); else onClose();
+    }
+    start.current = null;
+    axis.current = null;
+    setDragX(null);
+  };
+
+  return (
+    <div className="relative overflow-hidden">
+      <button type="button" onClick={onDelete}
+        className="absolute inset-y-0 right-0 bg-rose-600 text-white flex flex-col items-center justify-center gap-0.5 hover:bg-rose-700 transition-colors"
+        style={{ width: SWIPE_WIDTH }} tabIndex={isOpen ? 0 : -1} aria-hidden={!isOpen}>
+        <Trash2 className="w-4 h-4" />
+        <span className="mono text-[9px] font-bold uppercase tracking-wider">Apagar</span>
+      </button>
+      <div
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+        onPointerUp={endDrag} onPointerCancel={endDrag}
+        onClickCapture={e => {
+          if (moved.current) { e.preventDefault(); e.stopPropagation(); moved.current = false; }
+          else if (isOpen) { e.preventDefault(); e.stopPropagation(); onClose(); }
+        }}
+        className={dragX === null ? 'transition-transform duration-150' : ''}
+        style={{ transform: `translateX(${x}px)`, touchAction: 'pan-y' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Full-hand editor: every field of the saved hand is editable; saving
+// overrides the stored hand in place (id/timestamp preserved). The same
+// invariants enforced at logging time apply here: a preflop fold forces
+// flop 'none' + result 'ns_loss', and fold-to-cbet forces result 'ns_loss'.
+function EditHandModal({ hand, onSave, onClose }: {
+  hand: Hand;
+  onSave: (updates: Omit<Hand, 'id' | 'timestamp' | 'fromImport'>) => void;
+  onClose: () => void;
+}) {
+  const [card1, setCard1] = useState<CardRank>(hand.card1);
+  const [card2, setCard2] = useState<CardRank>(hand.card2);
+  const [handType, setHandType] = useState<HandType | null>(hand.handType);
+  const [playerCount, setPlayerCount] = useState(hand.playerCount);
+  const [position, setPosition] = useState<PokerPosition | null>(hand.position);
+  const [preFlopAction, setPreFlopAction] = useState<PreFlopAction>(hand.preFlopAction);
+  const [flopAction, setFlopAction] = useState<FlopAction>(hand.flopAction);
+  const [result, setResult] = useState<HandResult | null>(hand.result);
+  const [smallStackMode, setSmallStackMode] = useState(hand.smallStackMode);
+  const [notes, setNotes] = useState(hand.notes || '');
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const isPair = card1 === card2;
+  const effectiveType: HandType | null = isPair ? 'pair' : (handType === 'pair' ? null : handType);
+  const positions = getPositions(playerCount);
+  const validPosition = position !== null && positions.includes(position);
+  const isFoldPf = isFoldPreflop(preFlopAction);
+  const needsResult = !isFoldPf && flopAction !== 'fold_to_cbet';
+  const valid = effectiveType !== null && validPosition && (!needsResult || result !== null);
+
+  const save = () => {
+    if (!valid || effectiveType === null || position === null) return;
+    const trimmed = notes.trim();
+    onSave({
+      card1, card2, handType: effectiveType, playerCount, position,
+      preFlopAction,
+      flopAction: isFoldPf ? 'none' : flopAction,
+      result: isFoldPf || flopAction === 'fold_to_cbet' ? 'ns_loss' : result!,
+      smallStackMode,
+      notes: trimmed || undefined,
+    });
+  };
+
+  const gridBtn = (selected: boolean) =>
+    `mono h-9 text-[10px] font-bold uppercase tracking-wider border transition-colors ${
+      selected ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-stone-50 border-stone-300 hover:border-stone-900'
+    }`;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white border-2 border-stone-900 w-full max-w-md max-h-[85vh] overflow-y-auto p-4 space-y-4" onClick={e => e.stopPropagation()}>
+        <div>
+          <h3 className="mono text-[10px] font-bold uppercase tracking-widest text-stone-500">Editar mão</h3>
+          <p className="num text-sm font-bold mt-1">
+            {effectiveType ? handNotation(card1, card2, effectiveType) : `${card1}${card2}?`}
+            {effectiveType && <span className="text-stone-400 font-normal"> · {getHandRange(card1, card2, effectiveType)}</span>}
+          </p>
+        </div>
+
+        <div>
+          <Label>Cartas</Label>
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {CARD_RANKS.map(r => (
+              <button key={r} onClick={() => setCard1(r)}
+                className={`num h-8 text-sm font-bold border transition-colors ${
+                  card1 === r ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-white border-stone-300 hover:border-stone-900'
+                }`}>{r}</button>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {CARD_RANKS.map(r => (
+              <button key={r} onClick={() => setCard2(r)}
+                className={`num h-8 text-sm font-bold border transition-colors ${
+                  card2 === r ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-white border-stone-300 hover:border-stone-900'
+                }`}>{r}</button>
+            ))}
+          </div>
+          {!isPair && (
+            <div className="grid grid-cols-2 gap-1 mt-1">
+              <button onClick={() => setHandType('suited')} className={gridBtn(effectiveType === 'suited')}>Suited (s)</button>
+              <button onClick={() => setHandType('offsuit')} className={gridBtn(effectiveType === 'offsuit')}>Offsuit (o)</button>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <Label>Mesa</Label>
+          <div className="grid grid-cols-8 gap-1">
+            {[2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+              <button key={n} onClick={() => setPlayerCount(n)}
+                className={`mono h-8 text-[10px] font-bold border transition-colors ${
+                  playerCount === n ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-stone-100 text-stone-600 border-stone-300 hover:border-stone-900'
+                }`}>{n}</button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <Label>Posição</Label>
+          <div className="grid grid-cols-5 gap-1">
+            {positions.map(p => (
+              <button key={p} onClick={() => setPosition(p)} className={gridBtn(position === p)}>{p}</button>
+            ))}
+          </div>
+          {!validPosition && <p className="mono text-[10px] text-rose-700 mt-1 uppercase tracking-wider">Escolha a posição para esta mesa</p>}
+        </div>
+
+        <div>
+          <Label>Ação pré-flop</Label>
+          <div className="grid grid-cols-3 gap-1">
+            {([
+              'fold', 'fold_to_raise', 'fold_to_allin', 'limp', 'limp_fold', 'open', 'call_open',
+              '3bet', 'call_3bet', '4bet_plus', 'fold_to_3bet', 'fold_to_4bet_plus',
+            ] as PreFlopAction[]).map(a => (
+              <button key={a} onClick={() => setPreFlopAction(a)} className={gridBtn(preFlopAction === a)}>{ACTION_LABEL[a]}</button>
+            ))}
+          </div>
+        </div>
+
+        {!isFoldPf && (
+          <div>
+            <Label>Ação no flop</Label>
+            <div className="grid grid-cols-3 gap-1">
+              {(['none', 'cbet', 'no_cbet', 'call_cbet', 'fold_to_cbet'] as FlopAction[]).map(a => (
+                <button key={a} onClick={() => setFlopAction(a)} className={gridBtn(flopAction === a)}>{ACTION_LABEL[a]}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {needsResult ? (
+          <div>
+            <Label>Resultado</Label>
+            <div className="grid grid-cols-2 gap-1">
+              <ResultBtn label="SD Win" variant="sd-win" selected={result === 'sd_win'} onClick={() => setResult('sd_win')} />
+              <ResultBtn label="SD Loss" variant="sd-loss" selected={result === 'sd_loss'} onClick={() => setResult('sd_loss')} />
+              <ResultBtn label="NS Win" variant="ns-win" selected={result === 'ns_win'} onClick={() => setResult('ns_win')} />
+              <ResultBtn label="NS Loss" variant="ns-loss" selected={result === 'ns_loss'} onClick={() => setResult('ns_loss')} />
+            </div>
+          </div>
+        ) : (
+          <p className="mono text-[10px] text-stone-500 uppercase tracking-wider">Fold conta como NS Loss automaticamente</p>
+        )}
+
+        <div className="flex items-center justify-between">
+          <Label>Small stack</Label>
+          <button onClick={() => setSmallStackMode(s => !s)}
+            className={`px-3 py-1.5 border mono text-[10px] font-bold uppercase tracking-wider transition-colors ${
+              smallStackMode ? 'bg-stone-900 text-stone-50 border-stone-900' : 'bg-stone-50 text-stone-900 border-stone-300 hover:border-stone-900'
+            }`}>{smallStackMode ? '✓ SS' : 'SS'}</button>
+        </div>
+
+        <div>
+          <Label>Notas</Label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="Contexto, leitura do vilão, observação..." rows={3}
+            className="w-full mono text-xs p-3 bg-stone-50 border border-stone-300 focus:border-stone-900 outline-none resize-y placeholder:text-stone-400" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-1">
+          <button onClick={onClose}
+            className="py-2.5 mono text-xs font-bold uppercase tracking-wider border border-stone-300 hover:border-stone-900 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={save} disabled={!valid}
+            className="py-2.5 mono text-xs font-bold uppercase tracking-wider bg-stone-900 text-stone-50 border border-stone-900 hover:bg-stone-800 transition-colors disabled:opacity-30 disabled:hover:bg-stone-900">
+            Salvar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
